@@ -2,7 +2,8 @@ package ml.docilealligator.infinityforreddit.fragments;
 
 import android.widget.TextView;
 
-import com.google.android.exoplayer2.ui.PlayerView;
+import androidx.media3.ui.PlayerView;
+
 import com.google.android.material.bottomappbar.BottomAppBar;
 import com.google.android.material.button.MaterialButton;
 

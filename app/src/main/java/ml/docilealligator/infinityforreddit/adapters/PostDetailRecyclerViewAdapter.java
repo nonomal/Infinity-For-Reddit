@@ -25,8 +25,19 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
+import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.DefaultTimeBar;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.TimeBar;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.PagerSnapHelper;
 import androidx.recyclerview.widget.RecyclerView;
@@ -38,12 +49,6 @@ import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
-import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Tracks;
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
-import com.google.android.exoplayer2.ui.DefaultTimeBar;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.material.button.MaterialButton;
 import com.google.common.collect.ImmutableList;
 import com.libRG.CustomTextView;
@@ -416,7 +421,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
                         activity.startActivity(intent);
                     }
                 });
-        mMarkwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(mImageAndGifEntry);
+        mMarkwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(mActivity, mImageAndGifEntry);
     }
 
     public void setCanStartActivity(boolean canStartActivity) {
@@ -460,6 +465,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     @NonNull
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -509,6 +515,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         if (holder instanceof PostDetailBaseViewHolder) {
@@ -1017,6 +1024,100 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    private void openMedia(Post post) {
+        openMedia(post, 0);
+    }
+
+    private void openMedia(Post post, int galleryItemIndex) {
+        openMedia(post, galleryItemIndex, -1);
+    }
+
+    private void openMedia(Post post, long videoProgress) {
+        openMedia(post, 0, videoProgress);
+    }
+
+    private void openMedia(Post post, int galleryItemIndex, long videoProgress) {
+        if (canStartActivity) {
+            canStartActivity = false;
+            if (post.getPostType() == Post.VIDEO_TYPE) {
+                Intent intent = new Intent(mActivity, ViewVideoActivity.class);
+                if (post.isImgur()) {
+                    intent.setData(Uri.parse(post.getVideoUrl()));
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
+                } else if (post.isRedgifs()) {
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
+                    intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, post.getRedgifsId());
+                    if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
+                        intent.setData(Uri.parse(post.getVideoUrl()));
+                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
+                    }
+                } else if (post.isStreamable()) {
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
+                    intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, post.getStreamableShortCode());
+                    if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
+                        intent.setData(Uri.parse(post.getVideoUrl()));
+                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
+                    }
+                } else {
+                    intent.setData(Uri.parse(post.getVideoUrl()));
+                    intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, post.getSubredditName());
+                    intent.putExtra(ViewVideoActivity.EXTRA_ID, post.getId());
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
+                }
+                intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
+                if (videoProgress > 0) {
+                    intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, videoProgress);
+                }
+                intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
+                mActivity.startActivity(intent);
+            } else if (post.getPostType() == Post.IMAGE_TYPE) {
+                Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
+                intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, post.getUrl());
+                intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.getSubredditName()
+                        + "-" + post.getId() + ".jpg");
+                intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, post.getTitle());
+                intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, post.getSubredditName());
+                intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, post.isNSFW());
+                mActivity.startActivity(intent);
+            } else if (post.getPostType() == Post.GIF_TYPE) {
+                if (post.getMp4Variant() != null) {
+                    Intent intent = new Intent(mActivity, ViewVideoActivity.class);
+                    intent.setData(Uri.parse(post.getMp4Variant()));
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_DIRECT);
+                    intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, post.getSubredditName());
+                    intent.putExtra(ViewVideoActivity.EXTRA_ID, post.getId());
+                    intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getMp4Variant());
+                    intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
+                    intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
+                    mActivity.startActivity(intent);
+                } else {
+                    Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.getSubredditName()
+                            + "-" + post.getId() + ".gif");
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, post.getVideoUrl());
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, post.getTitle());
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, post.getSubredditName());
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, post.isNSFW());
+                    mActivity.startActivity(intent);
+                }
+            } else if (post.getPostType() == Post.LINK_TYPE || post.getPostType() == Post.NO_PREVIEW_LINK_TYPE) {
+                Intent intent = new Intent(mActivity, LinkResolverActivity.class);
+                Uri uri = Uri.parse(post.getUrl());
+                intent.setData(uri);
+                intent.putExtra(LinkResolverActivity.EXTRA_IS_NSFW, post.isNSFW());
+                mActivity.startActivity(intent);
+            } else if (post.getPostType() == Post.GALLERY_TYPE) {
+                Intent intent = new Intent(mActivity, ViewRedditGalleryActivity.class);
+                intent.putParcelableArrayListExtra(ViewRedditGalleryActivity.EXTRA_REDDIT_GALLERY, post.getGallery());
+                intent.putExtra(ViewRedditGalleryActivity.EXTRA_SUBREDDIT_NAME, post.getSubredditName());
+                intent.putExtra(ViewRedditGalleryActivity.EXTRA_IS_NSFW, post.isNSFW());
+                intent.putExtra(ViewRedditGalleryActivity.EXTRA_GALLERY_ITEM_INDEX, galleryItemIndex);
+                mActivity.startActivity(intent);
+            }
+        }
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         if (holder instanceof PostDetailBaseViewHolder) {
@@ -1589,6 +1690,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    @UnstableApi
     class PostDetailBaseVideoAutoplayViewHolder extends PostDetailBaseViewHolder implements ToroPlayer {
         public Call<String> fetchRedgifsOrStreamableVideoCall;
         AspectRatioFrameLayout aspectRatioFrameLayout;
@@ -1597,8 +1699,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         ImageView mErrorLoadingRedgifsImageView;
         ImageView muteButton;
         ImageView fullscreenButton;
-        ImageView pauseButton;
-        ImageView playButton;
+        ImageView playPauseButton;
         DefaultTimeBar progressBar;
         @Nullable
         Container container;
@@ -1607,6 +1708,8 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         private Uri mediaUri;
         private float volume;
         private boolean isManuallyPaused;
+        private Drawable playDrawable;
+        private Drawable pauseDrawable;
 
         public PostDetailBaseVideoAutoplayViewHolder(@NonNull View itemView,
                                                      AspectRatioGifImageView iconGifImageView,
@@ -1629,8 +1732,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
                                                      ImageView errorLoadingRedgifsImageView,
                                                      ImageView muteButton,
                                                      ImageView fullscreenButton,
-                                                     ImageView pauseButton,
-                                                     ImageView playButton,
+                                                     ImageView playPauseButton,
                                                      DefaultTimeBar progressBar,
                                                      RecyclerView contentMarkdownView,
                                                      ConstraintLayout bottomConstraintLayout,
@@ -1670,20 +1772,21 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             this.playerView = playerView;
             this.muteButton = muteButton;
             this.fullscreenButton = fullscreenButton;
-            this.pauseButton = pauseButton;
-            this.playButton = playButton;
+            this.playPauseButton = playPauseButton;
             this.progressBar = progressBar;
+            playDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_play_arrow_24dp);
+            pauseDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause_24dp);
 
             aspectRatioFrameLayout.setOnClickListener(null);
 
             muteButton.setOnClickListener(view -> {
                 if (helper != null) {
                     if (helper.getVolume() != 0) {
-                        muteButton.setImageDrawable(mActivity.getDrawable(R.drawable.ic_mute_24dp));
+                        muteButton.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_mute_24dp));
                         helper.setVolume(0f);
                         volume = 0f;
                     } else {
-                        muteButton.setImageDrawable(mActivity.getDrawable(R.drawable.ic_unmute_24dp));
+                        muteButton.setImageDrawable(AppCompatResources.getDrawable(mActivity, R.drawable.ic_unmute_24dp));
                         helper.setVolume(1f);
                         volume = 1f;
                     }
@@ -1691,50 +1794,22 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             });
 
             fullscreenButton.setOnClickListener(view -> {
-                if (canStartActivity) {
-                    canStartActivity = false;
-                    Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                    if (mPost.isImgur()) {
-                        intent.setData(Uri.parse(mPost.getVideoUrl()));
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
-                    } else if (mPost.isRedgifs()) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                        intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, mPost.getRedgifsId());
-                        if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                            intent.setData(Uri.parse(mPost.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                        }
-                    } else if (mPost.isStreamable()) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                        intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, mPost.getStreamableShortCode());
-                        if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                            intent.setData(Uri.parse(mPost.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                        }
-                    } else {
-                        intent.setData(Uri.parse(mPost.getVideoUrl()));
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                        intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                        intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                    }
-                    intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                    if (helper != null) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, helper.getLatestPlaybackInfo().getResumePosition());
-                    }
-                    intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                    mActivity.startActivity(intent);
+                if (helper != null) {
+                    openMedia(mPost, helper.getLatestPlaybackInfo().getResumePosition());
+                } else {
+                    openMedia(mPost);
                 }
             });
 
-            pauseButton.setOnClickListener(view -> {
-                pause();
-                isManuallyPaused = true;
-                savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
-            });
-
-            playButton.setOnClickListener(view -> {
-                isManuallyPaused = false;
-                play();
+            playPauseButton.setOnClickListener(view -> {
+                if (isPlaying()) {
+                    pause();
+                    isManuallyPaused = true;
+                    savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
+                } else {
+                    isManuallyPaused = false;
+                    play();
+                }
             });
 
             progressBar.addListener(new TimeBar.OnScrubListener() {
@@ -1758,7 +1833,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
 
             previewImageView.setOnClickListener(view -> fullscreenButton.performClick());
             playerView.setOnClickListener(view -> {
-                if (mEasierToWatchInFullScreen && playerView.isControllerVisible()) {
+                if (mEasierToWatchInFullScreen && playerView.isControllerFullyVisible()) {
                     fullscreenButton.performClick();
                 }
             });
@@ -1815,6 +1890,16 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             if (helper == null) {
                 helper = new ExoPlayerViewHelper(this, mediaUri, null, mExoCreator);
                 helper.addEventListener(new Playable.DefaultEventListener() {
+                    @Override
+                    public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
+                        if (events.containsAny(
+                                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                                Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED)) {
+                            playPauseButton.setImageDrawable(Util.shouldShowPlayButton(player) ? playDrawable : pauseDrawable);
+                        }
+                    }
+
                     @Override
                     public void onTracksChanged(@NonNull Tracks tracks) {
                         ImmutableList<Tracks.Group> trackGroups = tracks.getGroups();
@@ -1899,6 +1984,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    @UnstableApi
     class PostDetailVideoAutoplayViewHolder extends PostDetailBaseVideoAutoplayViewHolder {
         PostDetailVideoAutoplayViewHolder(@NonNull ItemPostDetailVideoAutoplayBinding binding) {
             super(binding.getRoot(),
@@ -1922,7 +2008,6 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
                     binding.errorLoadingVideoImageViewItemPostDetailVideoAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.contentMarkdownViewItemPostDetailVideoAutoplay,
@@ -1936,6 +2021,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
         }
     }
 
+    @UnstableApi
     class PostDetailVideoAutoplayLegacyControllerViewHolder extends PostDetailBaseVideoAutoplayViewHolder {
         PostDetailVideoAutoplayLegacyControllerViewHolder(ItemPostDetailVideoAutoplayLegacyControllerBinding binding) {
             super(binding.getRoot(),
@@ -1959,7 +2045,6 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
                     binding.errorLoadingVideoImageViewItemPostDetailVideoAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.contentMarkdownViewItemPostDetailVideoAutoplay,
@@ -2008,58 +2093,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             binding.loadImageErrorTextViewItemPostDetailVideoAndGifPreview.setTextColor(mPrimaryTextColor);
 
             binding.imageViewItemPostDetailVideoAndGifPreview.setOnClickListener(view -> {
-                if (canStartActivity) {
-                    canStartActivity = false;
-                    if (mPost.getPostType() == Post.VIDEO_TYPE) {
-                        Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                        if (mPost.isImgur()) {
-                            intent.setData(Uri.parse(mPost.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
-                        } else if (mPost.isRedgifs()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                            intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, mPost.getRedgifsId());
-                            if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(mPost.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                            }
-                        } else if (mPost.isStreamable()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                            intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, mPost.getStreamableShortCode());
-                            if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(mPost.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                            }
-                        } else {
-                            intent.setData(Uri.parse(mPost.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                        intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                        mActivity.startActivity(intent);
-                    } else if (mPost.getPostType() == Post.GIF_TYPE) {
-                        if (mPost.getMp4Variant() != null) {
-                            Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                            intent.setData(Uri.parse(mPost.getMp4Variant()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_DIRECT);
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getMp4Variant());
-                            intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                            intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                            mActivity.startActivity(intent);
-                        } else {
-                            Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mPost.getSubredditName()
-                                    + "-" + mPost.getId() + ".gif");
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mPost.getVideoUrl());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, mPost.getTitle());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
-                            mActivity.startActivity(intent);
-                        }
-                    }
-                }
+                openMedia(mPost);
             });
         }
     }
@@ -2097,38 +2131,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             binding.loadImageErrorTextViewItemPostDetailImageAndGifAutoplay.setTextColor(mPrimaryTextColor);
 
             binding.imageViewItemPostDetailImageAndGifAutoplay.setOnClickListener(view -> {
-                if (canStartActivity) {
-                    canStartActivity = false;
-                    if (mPost.getPostType() == Post.IMAGE_TYPE) {
-                        Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mPost.getUrl());
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mPost.getSubredditNamePrefixed().substring(2)
-                                + "-" + mPost.getId().substring(3) + ".jpg");
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, mPost.getTitle());
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
-                        mActivity.startActivity(intent);
-                    } else if (mPost.getPostType() == Post.GIF_TYPE) {
-                        if (mPost.getMp4Variant() != null) {
-                            Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                            intent.setData(Uri.parse(mPost.getMp4Variant()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_DIRECT);
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getMp4Variant());
-                            intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                            intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                            mActivity.startActivity(intent);
-                        } else {
-                            Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mPost.getSubredditName()
-                                    + "-" + mPost.getId() + ".gif");
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mPost.getVideoUrl());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, mPost.getTitle());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
-                            mActivity.startActivity(intent);
-                        }
-                    }
-                }
+                openMedia(mPost);
             });
         }
     }
@@ -2216,73 +2219,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             binding.imageViewNoPreviewPostTypeItemPostDetailNoPreview.setColorFilter(mNoPreviewPostTypeIconTint, PorterDuff.Mode.SRC_IN);
 
             binding.imageViewNoPreviewPostTypeItemPostDetailNoPreview.setOnClickListener(view -> {
-                if (mPost != null) {
-                    if (mPost.getPostType() == Post.VIDEO_TYPE) {
-                        Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                        if (mPost.isRedgifs()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                            intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, mPost.getRedgifsId());
-                            if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(mPost.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                            }
-                        } else if (mPost.isStreamable()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                            intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, mPost.getStreamableShortCode());
-                            if (mPost.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(mPost.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                            }
-                        } else {
-                            intent.setData(Uri.parse(mPost.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getVideoDownloadUrl());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                        intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                        mActivity.startActivity(intent);
-                    } else if (mPost.getPostType() == Post.IMAGE_TYPE) {
-                        Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mPost.getUrl());
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mPost.getSubredditName()
-                                + "-" + mPost.getId() + ".jpg");
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, mPost.getTitle());
-                        intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
-                        mActivity.startActivity(intent);
-                    } else if (mPost.getPostType() == Post.GIF_TYPE) {
-                        if (mPost.getMp4Variant() != null) {
-                            Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                            intent.setData(Uri.parse(mPost.getMp4Variant()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_DIRECT);
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, mPost.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, mPost.getId());
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, mPost.getMp4Variant());
-                            intent.putExtra(ViewVideoActivity.EXTRA_POST, mPost);
-                            intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                            mActivity.startActivity(intent);
-                        } else {
-                            Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mPost.getSubredditName()
-                                    + "-" + mPost.getId() + ".gif");
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mPost.getVideoUrl());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, mPost.getTitle());
-                            intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
-                            mActivity.startActivity(intent);
-                        }
-                    } else if (mPost.getPostType() == Post.LINK_TYPE || mPost.getPostType() == Post.NO_PREVIEW_LINK_TYPE) {
-                        Intent intent = new Intent(mActivity, LinkResolverActivity.class);
-                        Uri uri = Uri.parse(mPost.getUrl());
-                        intent.setData(uri);
-                        intent.putExtra(LinkResolverActivity.EXTRA_IS_NSFW, mPost.isNSFW());
-                        mActivity.startActivity(intent);
-                    } else if (mPost.getPostType() == Post.GALLERY_TYPE) {
-                        Intent intent = new Intent(mActivity, ViewRedditGalleryActivity.class);
-                        intent.putParcelableArrayListExtra(ViewRedditGalleryActivity.EXTRA_REDDIT_GALLERY, mPost.getGallery());
-                        intent.putExtra(ViewRedditGalleryActivity.EXTRA_SUBREDDIT_NAME, mPost.getSubredditName());
-                        mActivity.startActivity(intent);
-                    }
-                }
+                openMedia(mPost);
             });
         }
     }
@@ -2391,11 +2328,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
                                 int position = getBindingAdapterPosition();
                                 if (position >= 0) {
                                     if (mPost != null) {
-                                        Intent intent = new Intent(mActivity, ViewRedditGalleryActivity.class);
-                                        intent.putParcelableArrayListExtra(ViewRedditGalleryActivity.EXTRA_REDDIT_GALLERY, mPost.getGallery());
-                                        intent.putExtra(ViewRedditGalleryActivity.EXTRA_SUBREDDIT_NAME, mPost.getSubredditName());
-                                        intent.putExtra(ViewRedditGalleryActivity.EXTRA_GALLERY_ITEM_INDEX, layoutManager.findFirstVisibleItemPosition());
-                                        mActivity.startActivity(intent);
+                                        openMedia(mPost, layoutManager.findFirstVisibleItemPosition());
                                     }
                                 }
                             }
@@ -2419,11 +2352,7 @@ public class PostDetailRecyclerViewAdapter extends RecyclerView.Adapter<Recycler
             });
 
             binding.noPreviewPostTypeImageViewItemPostDetailGallery.setOnClickListener(view -> {
-                Intent intent = new Intent(mActivity, ViewRedditGalleryActivity.class);
-                intent.putParcelableArrayListExtra(ViewRedditGalleryActivity.EXTRA_REDDIT_GALLERY, mPost.getGallery());
-                intent.putExtra(ViewRedditGalleryActivity.EXTRA_SUBREDDIT_NAME, mPost.getSubredditName());
-                intent.putExtra(ViewRedditGalleryActivity.EXTRA_GALLERY_ITEM_INDEX, layoutManager.findFirstVisibleItemPosition());
-                mActivity.startActivity(intent);
+                openMedia(mPost, layoutManager.findFirstVisibleItemPosition());
             });
         }
     }

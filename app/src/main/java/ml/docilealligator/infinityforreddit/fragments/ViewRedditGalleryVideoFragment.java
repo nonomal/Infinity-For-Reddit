@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,21 +20,28 @@ import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackParameters;
+import androidx.media3.common.Player;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.SimpleCache;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
+import androidx.media3.exoplayer.trackselection.TrackSelector;
+import androidx.media3.ui.PlayerView;
 
-import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.MediaItem;
-import com.google.android.exoplayer2.PlaybackParameters;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.Tracks;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
-import com.google.android.exoplayer2.upstream.DataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
-import com.google.android.exoplayer2.upstream.cache.SimpleCache;
+import com.google.android.material.button.MaterialButton;
 import com.google.common.collect.ImmutableList;
 
 import javax.inject.Inject;
@@ -74,6 +82,7 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
     @Inject
     @Named("default")
     SharedPreferences mSharedPreferences;
+    @UnstableApi
     @Inject
     SimpleCache mSimpleCache;
     private ViewRedditGalleryVideoFragmentBindingAdapter binding;
@@ -83,6 +92,7 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
     }
 
 
+    @OptIn(markerClass = UnstableApi.class)
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -118,7 +128,7 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
             }
         }
 
-        binding.getPlayerView().setControllerVisibilityListener(visibility -> {
+        binding.getPlayerView().setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) visibility -> {
             switch (visibility) {
                 case View.GONE:
                     activity.getWindow().getDecorView().setSystemUiVisibility(
@@ -138,7 +148,10 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
         });
 
         TrackSelector trackSelector = new DefaultTrackSelector(activity);
-        player = new ExoPlayer.Builder(activity).setTrackSelector(trackSelector).build();
+        player = new ExoPlayer.Builder(activity)
+                .setTrackSelector(trackSelector)
+                .setRenderersFactory(new DefaultRenderersFactory(activity).setEnableDecoderFallback(true))
+                .build();
         binding.getPlayerView().setPlayer(player);
         dataSourceFactory = new CacheDataSource.Factory().setCache(mSimpleCache)
                 .setUpstreamDataSourceFactory(new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent(APIUtils.USER_AGENT));
@@ -285,7 +298,24 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
             binding.getMuteButton().setImageResource(R.drawable.ic_unmute_24dp);
         }
 
+        MaterialButton playPauseButton = binding.getRoot().findViewById(R.id.exo_play_pause_button_exo_playback_control_view);
+        Drawable playDrawable = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_play_arrow_24dp, null);
+        Drawable pauseDrawable = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_pause_24dp, null);
+        playPauseButton.setOnClickListener(view -> {
+            Util.handlePlayPauseButtonAction(player);
+        });
+
         player.addListener(new Player.Listener() {
+            @Override
+            public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
+                if (events.containsAny(
+                        Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                        Player.EVENT_PLAYBACK_STATE_CHANGED,
+                        Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED)) {
+                    playPauseButton.setIcon(Util.shouldShowPlayButton(player) ? playDrawable : pauseDrawable);
+                }
+            }
+
             @Override
             public void onTracksChanged(@NonNull Tracks tracks) {
                 ImmutableList<Tracks.Group> trackGroups = tracks.getGroups();
@@ -342,7 +372,7 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
     public void onDestroy() {
         super.onDestroy();
         player.seekToDefaultPosition();
-        player.stop(true);
+        player.stop();
         player.release();
     }
 

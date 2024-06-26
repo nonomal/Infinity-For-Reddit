@@ -4,7 +4,6 @@ import static androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO;
 import static androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -101,6 +100,7 @@ import ml.docilealligator.infinityforreddit.events.ChangeLockBottomAppBarEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeNSFWEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeRequireAuthToAccountSectionEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeShowAvatarOnTheRightInTheNavigationDrawerEvent;
+import ml.docilealligator.infinityforreddit.events.NewUserLoggedInEvent;
 import ml.docilealligator.infinityforreddit.events.RecreateActivityEvent;
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.PostFragment;
@@ -140,8 +140,6 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
     private static final String MESSAGE_FULLNAME_STATE = "MFS";
     private static final String NEW_ACCOUNT_NAME_STATE = "NANS";
     private static final String INBOX_COUNT_STATE = "ICS";
-
-    private static final int LOGIN_ACTIVITY_REQUEST_CODE = 0;
 
     MultiRedditViewModel multiRedditViewModel;
     SubscribedSubredditViewModel subscribedSubredditViewModel;
@@ -798,8 +796,7 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                         } else if (stringId == R.string.settings) {
                             intent = new Intent(MainActivity.this, SettingsActivity.class);
                         } else if (stringId == R.string.add_account) {
-                            Intent addAccountIntent = new Intent(MainActivity.this, LoginActivity.class);
-                            startActivityForResult(addAccountIntent, LOGIN_ACTIVITY_REQUEST_CODE);
+                            intent = new Intent(MainActivity.this, LoginActivity.class);
                         } else if (stringId == R.string.anonymous_account) {
                             SwitchToAnonymousMode.switchToAnonymousMode(mRedditDataRoomDatabase, mCurrentAccountSharedPreferences,
                                     mExecutor, new Handler(), false, () -> {
@@ -1047,17 +1044,6 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == LOGIN_ACTIVITY_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            Intent intent = new Intent(this, MainActivity.class);
-            startActivity(intent);
-            finish();
-        }
-
-        super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_activity, menu);
         applyMenuItemTheme(menu);
@@ -1290,6 +1276,13 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
         navigationWrapper.floatingActionButton.setVisibility(hideFab ? View.GONE : View.VISIBLE);
     }
 
+    @Subscribe
+    public void onNewUserLoggedInEvent(NewUserLoggedInEvent event) {
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+        finish();
+    }
+
     @Override
     public void onLongPress() {
         if (sectionsPagerAdapter != null) {
@@ -1388,6 +1381,7 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
         });
 
         boolean nsfw = mNsfwAndSpoilerSharedPreferences.getBoolean((accountName.equals(Account.ANONYMOUS_ACCOUNT) ? "" : accountName) + SharedPreferencesUtils.NSFW_BASE, false);
+        Handler handler = new Handler();
         thingEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
@@ -1410,16 +1404,17 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                     @Override
                     public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
                         if (response.isSuccessful()) {
-                            ParseSubredditData.parseSubredditListingData(response.body(), nsfw, new ParseSubredditData.ParseSubredditListingDataListener() {
-                                @Override
-                                public void onParseSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
-                                    adapter.setSubreddits(subredditData);
-                                }
+                            ParseSubredditData.parseSubredditListingData(mExecutor, handler,
+                                    response.body(), nsfw, new ParseSubredditData.ParseSubredditListingDataListener() {
+                                        @Override
+                                        public void onParseSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
+                                            adapter.setSubreddits(subredditData);
+                                        }
 
-                                @Override
-                                public void onParseSubredditListingDataFail() {
+                                        @Override
+                                        public void onParseSubredditListingDataFail() {
 
-                                }
+                                        }
                             });
                         }
                     }

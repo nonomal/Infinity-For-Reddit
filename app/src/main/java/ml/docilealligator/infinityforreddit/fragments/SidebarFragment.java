@@ -177,7 +177,7 @@ public class SidebarFragment extends Fragment {
         Markwon markwon = MarkdownUtils.createFullRedditMarkwon(activity,
                 miscPlugin, emoteCloseBracketInlineProcessor, emotePlugin, imageAndGifPlugin, markdownColor,
                 spoilerBackgroundColor, onLinkLongClickListener);
-        CustomMarkwonAdapter markwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(imageAndGifEntry);
+        CustomMarkwonAdapter markwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(activity, imageAndGifEntry);
         markwonAdapter.setOnLongClickListener(view -> {
             if (sidebarDescription != null && !sidebarDescription.equals("")) {
                 Bundle bundle = new Bundle();
@@ -238,20 +238,23 @@ public class SidebarFragment extends Fragment {
 
     public void fetchSubredditData() {
         binding.swipeRefreshLayoutSidebarFragment.setRefreshing(true);
-        FetchSubredditData.fetchSubredditData(activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? null : mOauthRetrofit, mRetrofit, subredditName, activity.accessToken, new FetchSubredditData.FetchSubredditDataListener() {
-            @Override
-            public void onFetchSubredditDataSuccess(SubredditData subredditData, int nCurrentOnlineSubscribers) {
-                binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false);
-                InsertSubredditData.insertSubredditData(mExecutor, new Handler(), mRedditDataRoomDatabase,
-                        subredditData, () -> binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false));
-            }
+        Handler handler = new Handler();
+        FetchSubredditData.fetchSubredditData(mExecutor, handler,
+                activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? null : mOauthRetrofit, mRetrofit,
+                subredditName, activity.accessToken, new FetchSubredditData.FetchSubredditDataListener() {
+                    @Override
+                    public void onFetchSubredditDataSuccess(SubredditData subredditData, int nCurrentOnlineSubscribers) {
+                        binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false);
+                        InsertSubredditData.insertSubredditData(mExecutor, handler, mRedditDataRoomDatabase,
+                                subredditData, () -> binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false));
+                    }
 
-            @Override
-            public void onFetchSubredditDataFail(boolean isQuarantined) {
-                binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false);
-                Toast.makeText(activity, R.string.cannot_fetch_sidebar, Toast.LENGTH_SHORT).show();
-            }
-        });
+                    @Override
+                    public void onFetchSubredditDataFail(boolean isQuarantined) {
+                        binding.swipeRefreshLayoutSidebarFragment.setRefreshing(false);
+                        Toast.makeText(activity, R.string.cannot_fetch_sidebar, Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     public void goBackToTop() {

@@ -25,10 +25,21 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.constraintlayout.widget.Barrier;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.core.content.ContextCompat;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
+import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.DefaultTimeBar;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.TimeBar;
 import androidx.paging.PagingDataAdapter;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -43,12 +54,6 @@ import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
-import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Tracks;
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
-import com.google.android.exoplayer2.ui.DefaultTimeBar;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.ui.TimeBar;
 import com.google.android.material.button.MaterialButton;
 import com.google.common.collect.ImmutableList;
 import com.libRG.CustomTextView;
@@ -2576,6 +2581,14 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     }
 
     private void openMedia(Post post, int galleryItemIndex) {
+        openMedia(post, galleryItemIndex, -1);
+    }
+
+    private void openMedia(Post post, long videoProgress) {
+        openMedia(post, 0, videoProgress);
+    }
+
+    private void openMedia(Post post, int galleryItemIndex, long videoProgress) {
         if (canStartActivity) {
             canStartActivity = false;
             if (post.getPostType() == Post.VIDEO_TYPE) {
@@ -2604,6 +2617,9 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
                 }
                 intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
+                if (videoProgress > 0) {
+                    intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, videoProgress);
+                }
                 intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
                 mActivity.startActivity(intent);
             } else if (post.getPostType() == Post.IMAGE_TYPE) {
@@ -3276,8 +3292,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         PlayerView videoPlayer;
         ImageView muteButton;
         ImageView fullscreenButton;
-        ImageView pauseButton;
-        ImageView playButton;
+        ImageView playPauseButton;
         DefaultTimeBar progressBar;
         @Nullable
         Container container;
@@ -3287,7 +3302,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         private float volume;
         public Call<String> fetchRedgifsOrStreamableVideoCall;
         private boolean isManuallyPaused;
+        private Drawable playDrawable;
+        private Drawable pauseDrawable;
 
+        @OptIn(markerClass = UnstableApi.class)
         PostBaseVideoAutoplayViewHolder(View rootView,
                                         AspectRatioGifImageView iconGifImageView,
                                         TextView subredditTextView,
@@ -3308,8 +3326,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                                         PlayerView videoPlayer,
                                         ImageView muteButton,
                                         ImageView fullscreenButton,
-                                        ImageView pauseButton,
-                                        ImageView playButton,
+                                        ImageView playPauseButton,
                                         DefaultTimeBar progressBar,
                                         ConstraintLayout bottomConstraintLayout,
                                         MaterialButton upvoteButton,
@@ -3347,9 +3364,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             this.videoPlayer = videoPlayer;
             this.muteButton = muteButton;
             this.fullscreenButton = fullscreenButton;
-            this.pauseButton = pauseButton;
-            this.playButton = playButton;
+            this.playPauseButton = playPauseButton;
             this.progressBar = progressBar;
+            playDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_play_arrow_24dp);
+            pauseDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause_24dp);
 
             aspectRatioFrameLayout.setOnClickListener(null);
 
@@ -3370,58 +3388,31 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             });
 
             fullscreenButton.setOnClickListener(view -> {
-                if (canStartActivity) {
-                    canStartActivity = false;
-                    int position = getBindingAdapterPosition();
-                    if (position < 0) {
-                        return;
-                    }
-                    Post post = getItem(position);
-                    if (post != null) {
-                        markPostRead(post, true);
-                        Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                        if (post.isImgur()) {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
-                        } else if (post.isRedgifs()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                            intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, post.getRedgifsId());
-                            if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(post.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            }
-                        } else if (post.isStreamable()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                            intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, post.getStreamableShortCode());
-                            if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(post.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            }
-                        } else {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, post.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, post.getId());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
-                        if (helper != null) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, helper.getLatestPlaybackInfo().getResumePosition());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
-                        mActivity.startActivity(intent);
+                int position = getBindingAdapterPosition();
+                if (position < 0) {
+                    return;
+                }
+                Post post = getItem(position);
+                if (post != null) {
+                    markPostRead(post, true);
+
+                    if (helper != null) {
+                        openMedia(post, helper.getLatestPlaybackInfo().getResumePosition());
+                    } else {
+                        openMedia(post, -1);
                     }
                 }
             });
 
-            pauseButton.setOnClickListener(view -> {
-                pause();
-                isManuallyPaused = true;
-                savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
-            });
-
-            playButton.setOnClickListener(view -> {
-                isManuallyPaused = false;
-                play();
+            playPauseButton.setOnClickListener(view -> {
+                if (isPlaying()) {
+                    pause();
+                    isManuallyPaused = true;
+                    savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
+                } else {
+                    isManuallyPaused = false;
+                    play();
+                }
             });
 
             progressBar.addListener(new TimeBar.OnScrubListener() {
@@ -3446,7 +3437,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             previewImageView.setOnClickListener(view -> fullscreenButton.performClick());
 
             videoPlayer.setOnClickListener(view -> {
-                if (mEasierToWatchInFullScreen && videoPlayer.isControllerVisible()) {
+                if (mEasierToWatchInFullScreen && videoPlayer.isControllerFullyVisible()) {
                     fullscreenButton.performClick();
                 }
             });
@@ -3503,6 +3494,16 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (helper == null) {
                 helper = new ExoPlayerViewHelper(this, mediaUri, null, mExoCreator);
                 helper.addEventListener(new Playable.DefaultEventListener() {
+                    @Override
+                    public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
+                        if (events.containsAny(
+                                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                                Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED)) {
+                            playPauseButton.setImageDrawable(Util.shouldShowPlayButton(player) ? playDrawable : pauseDrawable);
+                        }
+                    }
+
                     @Override
                     public void onTracksChanged(@NonNull Tracks tracks) {
                         ImmutableList<Tracks.Group> trackGroups = tracks.getGroups();
@@ -3613,7 +3614,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostVideoTypeAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostVideoTypeAutoplay,
@@ -3648,7 +3648,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostVideoTypeAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostVideoTypeAutoplay,
@@ -4987,8 +4986,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         PlayerView videoPlayer;
         ImageView muteButton;
         ImageView fullscreenButton;
-        ImageView pauseButton;
-        ImageView playButton;
+        ImageView playPauseButton;
         DefaultTimeBar progressBar;
         View divider;
         @Nullable
@@ -4999,6 +4997,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         private float volume;
         public Call<String> fetchRedgifsOrStreamableVideoCall;
         private boolean isManuallyPaused;
+        private Drawable playDrawable;
+        private Drawable pauseDrawable;
 
         PostCard2BaseVideoAutoplayViewHolder(View itemView,
                                              AspectRatioGifImageView iconGifImageView,
@@ -5020,8 +5020,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                                              PlayerView videoPlayer,
                                              ImageView muteButton,
                                              ImageView fullscreenButton,
-                                             ImageView pauseButton,
-                                             ImageView playButton,
+                                             ImageView playPauseButton,
                                              DefaultTimeBar progressBar,
                                              ConstraintLayout bottomConstraintLayout,
                                              MaterialButton upvoteButton,
@@ -5061,10 +5060,11 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             this.videoPlayer = videoPlayer;
             this.muteButton = muteButton;
             this.fullscreenButton = fullscreenButton;
-            this.pauseButton = pauseButton;
-            this.playButton = playButton;
+            this.playPauseButton = playPauseButton;
             this.progressBar = progressBar;
             this.divider = divider;
+            playDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_play_arrow_24dp);
+            pauseDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause_24dp);
 
             divider.setBackgroundColor(mDividerColor);
 
@@ -5094,48 +5094,24 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                 Post post = getItem(position);
                 if (post != null) {
                     markPostRead(post, true);
-                    Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                    if (post.isImgur()) {
-                        intent.setData(Uri.parse(post.getVideoUrl()));
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
-                    } else if (post.isRedgifs()) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                        intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, post.getRedgifsId());
-                        if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                        }
-                    } else if (post.isStreamable()) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                        intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, post.getStreamableShortCode());
-                        if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                        }
-                    } else {
-                        intent.setData(Uri.parse(post.getVideoUrl()));
-                        intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                        intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, post.getSubredditName());
-                        intent.putExtra(ViewVideoActivity.EXTRA_ID, post.getId());
-                    }
-                    intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
+
                     if (helper != null) {
-                        intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, helper.getLatestPlaybackInfo().getResumePosition());
+                        openMedia(post, helper.getLatestPlaybackInfo().getResumePosition());
+                    } else {
+                        openMedia(post, -1);
                     }
-                    intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
-                    mActivity.startActivity(intent);
                 }
             });
 
-            pauseButton.setOnClickListener(view -> {
-                pause();
-                isManuallyPaused = true;
-                savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
-            });
-
-            playButton.setOnClickListener(view -> {
-                isManuallyPaused = false;
-                play();
+            playPauseButton.setOnClickListener(view -> {
+                if (isPlaying()) {
+                    pause();
+                    isManuallyPaused = true;
+                    savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
+                } else {
+                    isManuallyPaused = false;
+                    play();
+                }
             });
 
             progressBar.addListener(new TimeBar.OnScrubListener() {
@@ -5160,7 +5136,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             previewImageView.setOnClickListener(view -> fullscreenButton.performClick());
 
             videoPlayer.setOnClickListener(view -> {
-                if (mEasierToWatchInFullScreen && videoPlayer.isControllerVisible()) {
+                if (mEasierToWatchInFullScreen && videoPlayer.isControllerFullyVisible()) {
                     fullscreenButton.performClick();
                 }
             });
@@ -5217,6 +5193,16 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (helper == null) {
                 helper = new ExoPlayerViewHelper(this, mediaUri, null, mExoCreator);
                 helper.addEventListener(new Playable.DefaultEventListener() {
+                    @Override
+                    public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
+                        if (events.containsAny(
+                                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                                Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED)) {
+                            playPauseButton.setImageDrawable(Util.shouldShowPlayButton(player) ? playDrawable : pauseDrawable);
+                        }
+                    }
+
                     @Override
                     public void onTracksChanged(@NonNull Tracks tracks) {
                         ImmutableList<Tracks.Group> trackGroups = tracks.getGroups();
@@ -5327,7 +5313,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostCard2VideoAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostCard2VideoAutoplay,
@@ -5363,7 +5348,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostCard2VideoAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostCard2VideoAutoplay,
@@ -6036,8 +6020,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         PlayerView videoPlayer;
         ImageView muteButton;
         ImageView fullscreenButton;
-        ImageView pauseButton;
-        ImageView playButton;
+        ImageView playPauseButton;
         DefaultTimeBar progressBar;
         @Nullable
         Container container;
@@ -6047,6 +6030,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         private float volume;
         public Call<String> fetchRedgifsOrStreamableVideoCall;
         private boolean isManuallyPaused;
+        private Drawable playDrawable;
+        private Drawable pauseDrawable;
 
         PostMaterial3CardBaseVideoAutoplayViewHolder(View rootView,
                                                      AspectRatioGifImageView iconGifImageView,
@@ -6061,8 +6046,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                                                      PlayerView videoPlayer,
                                                      ImageView muteButton,
                                                      ImageView fullscreenButton,
-                                                     ImageView pauseButton,
-                                                     ImageView playButton,
+                                                     ImageView playPauseButton,
                                                      DefaultTimeBar progressBar,
                                                      ConstraintLayout bottomConstraintLayout,
                                                      MaterialButton upvoteButton,
@@ -6093,9 +6077,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             this.videoPlayer = videoPlayer;
             this.muteButton = muteButton;
             this.fullscreenButton = fullscreenButton;
-            this.pauseButton = pauseButton;
-            this.playButton = playButton;
+            this.playPauseButton = playPauseButton;
             this.progressBar = progressBar;
+            playDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_play_arrow_24dp);
+            pauseDrawable = AppCompatResources.getDrawable(mActivity, R.drawable.ic_pause_24dp);
 
             aspectRatioFrameLayout.setOnClickListener(null);
 
@@ -6116,58 +6101,31 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             });
 
             fullscreenButton.setOnClickListener(view -> {
-                if (canStartActivity) {
-                    canStartActivity = false;
-                    int position = getBindingAdapterPosition();
-                    if (position < 0) {
-                        return;
-                    }
-                    Post post = getItem(position);
-                    if (post != null) {
-                        markPostRead(post, true);
-                        Intent intent = new Intent(mActivity, ViewVideoActivity.class);
-                        if (post.isImgur()) {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_IMGUR);
-                        } else if (post.isRedgifs()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_REDGIFS);
-                            intent.putExtra(ViewVideoActivity.EXTRA_REDGIFS_ID, post.getRedgifsId());
-                            if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(post.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            }
-                        } else if (post.isStreamable()) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_TYPE, ViewVideoActivity.VIDEO_TYPE_STREAMABLE);
-                            intent.putExtra(ViewVideoActivity.EXTRA_STREAMABLE_SHORT_CODE, post.getStreamableShortCode());
-                            if (post.isLoadRedgifsOrStreamableVideoSuccess()) {
-                                intent.setData(Uri.parse(post.getVideoUrl()));
-                                intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            }
-                        } else {
-                            intent.setData(Uri.parse(post.getVideoUrl()));
-                            intent.putExtra(ViewVideoActivity.EXTRA_VIDEO_DOWNLOAD_URL, post.getVideoDownloadUrl());
-                            intent.putExtra(ViewVideoActivity.EXTRA_SUBREDDIT, post.getSubredditName());
-                            intent.putExtra(ViewVideoActivity.EXTRA_ID, post.getId());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_POST, post);
-                        if (helper != null) {
-                            intent.putExtra(ViewVideoActivity.EXTRA_PROGRESS_SECONDS, helper.getLatestPlaybackInfo().getResumePosition());
-                        }
-                        intent.putExtra(ViewVideoActivity.EXTRA_IS_NSFW, post.isNSFW());
-                        mActivity.startActivity(intent);
+                int position = getBindingAdapterPosition();
+                if (position < 0) {
+                    return;
+                }
+                Post post = getItem(position);
+                if (post != null) {
+                    markPostRead(post, true);
+
+                    if (helper != null) {
+                        openMedia(post, helper.getLatestPlaybackInfo().getResumePosition());
+                    } else {
+                        openMedia(post, -1);
                     }
                 }
             });
 
-            pauseButton.setOnClickListener(view -> {
-                pause();
-                isManuallyPaused = true;
-                savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
-            });
-
-            playButton.setOnClickListener(view -> {
-                isManuallyPaused = false;
-                play();
+            playPauseButton.setOnClickListener(view -> {
+                if (isPlaying()) {
+                    pause();
+                    isManuallyPaused = true;
+                    savePlaybackInfo(getPlayerOrder(), getCurrentPlaybackInfo());
+                } else {
+                    isManuallyPaused = false;
+                    play();
+                }
             });
 
             progressBar.addListener(new TimeBar.OnScrubListener() {
@@ -6192,7 +6150,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             previewImageView.setOnClickListener(view -> fullscreenButton.performClick());
 
             videoPlayer.setOnClickListener(view -> {
-                if (mEasierToWatchInFullScreen && videoPlayer.isControllerVisible()) {
+                if (mEasierToWatchInFullScreen && videoPlayer.isControllerFullyVisible()) {
                     fullscreenButton.performClick();
                 }
             });
@@ -6249,6 +6207,16 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (helper == null) {
                 helper = new ExoPlayerViewHelper(this, mediaUri, null, mExoCreator);
                 helper.addEventListener(new Playable.DefaultEventListener() {
+                    @Override
+                    public void onEvents(@NonNull Player player, @NonNull Player.Events events) {
+                        if (events.containsAny(
+                                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                                Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED)) {
+                            playPauseButton.setImageDrawable(Util.shouldShowPlayButton(player) ? playDrawable : pauseDrawable);
+                        }
+                    }
+
                     @Override
                     public void onTracksChanged(@NonNull Tracks tracks) {
                         ImmutableList<Tracks.Group> trackGroups = tracks.getGroups();
@@ -6352,7 +6320,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostCard3VideoTypeAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostCard3VideoTypeAutoplay,
@@ -6380,7 +6347,6 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     binding.playerViewItemPostCard3VideoTypeAutoplay,
                     binding.getRoot().findViewById(R.id.mute_exo_playback_control_view),
                     binding.getRoot().findViewById(R.id.fullscreen_exo_playback_control_view),
-                    binding.getRoot().findViewById(R.id.exo_pause),
                     binding.getRoot().findViewById(R.id.exo_play),
                     binding.getRoot().findViewById(R.id.exo_progress),
                     binding.bottomConstraintLayoutItemPostCard3VideoTypeAutoplay,
