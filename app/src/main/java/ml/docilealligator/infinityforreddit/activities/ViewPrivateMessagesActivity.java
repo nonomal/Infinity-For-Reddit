@@ -2,12 +2,16 @@ package ml.docilealligator.infinityforreddit.activities;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MenuItem;
+import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.transition.AutoTransition;
 import androidx.transition.TransitionManager;
 
@@ -24,10 +28,9 @@ import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import ml.docilealligator.infinityforreddit.ActivityToolbarInterface;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.adapters.PrivateMessagesDetailRecyclerViewAdapter;
 import ml.docilealligator.infinityforreddit.asynctasks.LoadUserData;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
@@ -39,6 +42,7 @@ import ml.docilealligator.infinityforreddit.events.RepliedToPrivateMessageEvent;
 import ml.docilealligator.infinityforreddit.message.Message;
 import ml.docilealligator.infinityforreddit.message.ReadMessage;
 import ml.docilealligator.infinityforreddit.message.ReplyMessage;
+import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
 
 public class ViewPrivateMessagesActivity extends BaseActivity implements ActivityToolbarInterface {
@@ -83,7 +87,7 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
     protected void onCreate(Bundle savedInstanceState) {
         ((Infinity) getApplication()).getAppComponent().inject(this);
 
-        setImmersiveModeNotApplicable();
+        setImmersiveModeNotApplicableBelowAndroid16();
 
         super.onCreate(savedInstanceState);
 
@@ -96,8 +100,32 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
 
         applyCustomTheme();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isChangeStatusBarIconColor()) {
-            addOnOffsetChangedListener(binding.appbarLayoutViewPrivateMessagesActivity);
+        if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            if (isChangeStatusBarIconColor()) {
+                addOnOffsetChangedListener(binding.appbarLayoutViewPrivateMessagesActivity);
+            }
+
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, true, isForcedImmersiveInterface());
+
+                    setMargins(binding.toolbarViewPrivateMessagesActivity,
+                            allInsets.left,
+                            allInsets.top,
+                            allInsets.right,
+                            BaseActivity.IGNORE_MARGIN);
+
+                    binding.linearLayoutViewPrivateMessagesActivity.setPadding(
+                            allInsets.left,
+                            0,
+                            allInsets.right,
+                            allInsets.bottom);
+
+                    return insets;
+                }
+            });
         }
 
         setSupportActionBar(binding.toolbarViewPrivateMessagesActivity);
@@ -118,35 +146,48 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
     }
 
     private void bindView() {
+        setTitle(privateMessage.getRecipient(accountName));
         if (privateMessage != null) {
             if (privateMessage.getAuthor().equals(accountName)) {
-                setTitle(privateMessage.getDestination());
                 binding.toolbarViewPrivateMessagesActivity.setOnClickListener(view -> {
                     if (privateMessage.isDestinationDeleted()) {
                         return;
                     }
-                    Intent intent = new Intent(this, ViewUserDetailActivity.class);
-                    intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, privateMessage.getDestination());
-                    startActivity(intent);
+                    if (privateMessage.getDestination().startsWith("#")) {
+                        Intent intent = new Intent(this, ViewSubredditDetailActivity.class);
+                        intent.putExtra(ViewSubredditDetailActivity.EXTRA_SUBREDDIT_NAME_KEY, privateMessage.getSubredditName());
+                        startActivity(intent);
+                    } else {
+                        Intent intent = new Intent(this, ViewUserDetailActivity.class);
+                        intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, privateMessage.getDestination());
+                        startActivity(intent);
+                    }
                 });
             } else {
-                setTitle(privateMessage.getAuthor());
-                binding.toolbarViewPrivateMessagesActivity.setOnClickListener(view -> {
-                    if (privateMessage.isAuthorDeleted()) {
-                        return;
-                    }
-                    Intent intent = new Intent(this, ViewUserDetailActivity.class);
-                    intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, privateMessage.getAuthor());
-                    startActivity(intent);
-                });
+                if (privateMessage.getAuthor().equals("null")) {
+                    binding.toolbarViewPrivateMessagesActivity.setOnClickListener(view -> {
+                        Intent intent = new Intent(this, ViewSubredditDetailActivity.class);
+                        intent.putExtra(ViewSubredditDetailActivity.EXTRA_SUBREDDIT_NAME_KEY, privateMessage.getSubredditName());
+                        startActivity(intent);
+                    });
+                } else {
+                    binding.toolbarViewPrivateMessagesActivity.setOnClickListener(view -> {
+                        if (privateMessage.isAuthorDeleted()) {
+                            return;
+                        }
+                        Intent intent = new Intent(this, ViewUserDetailActivity.class);
+                        intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, privateMessage.getAuthor());
+                        startActivity(intent);
+                    });
+                }
             }
         }
         mAdapter = new PrivateMessagesDetailRecyclerViewAdapter(this, mSharedPreferences,
                 getResources().getConfiguration().locale, privateMessage, accountName, mCustomThemeWrapper);
         mLinearLayoutManager = new LinearLayoutManagerBugFixed(this);
         mLinearLayoutManager.setStackFromEnd(true);
-        binding.recyclerViewViewPrivateMessages.setLayoutManager(mLinearLayoutManager);
-        binding.recyclerViewViewPrivateMessages.setAdapter(mAdapter);
+        binding.recyclerViewViewPrivateMessagesActivity.setLayoutManager(mLinearLayoutManager);
+        binding.recyclerViewViewPrivateMessagesActivity.setAdapter(mAdapter);
         goToBottom();
         binding.sendImageViewViewPrivateMessagesActivity.setOnClickListener(view -> {
             if (!isSendingMessage) {
@@ -159,9 +200,9 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
                         }
                         isSendingMessage = true;
                         binding.sendImageViewViewPrivateMessagesActivity.setColorFilter(mSecondaryTextColor, android.graphics.PorterDuff.Mode.SRC_IN);
-                        ReplyMessage.replyMessage(binding.editTextViewPrivateMessagesActivity.getText().toString(), replyTo.getFullname(),
-                                getResources().getConfiguration().locale, mOauthRetrofit, accessToken,
-                                new ReplyMessage.ReplyMessageListener() {
+                        ReplyMessage.replyMessage(mExecutor, mHandler, binding.editTextViewPrivateMessagesActivity.getText().toString(),
+                                replyTo.getFullname(), getResources().getConfiguration().locale,
+                                mOauthRetrofit, accessToken, new ReplyMessage.ReplyMessageListener() {
                                     @Override
                                     public void replyMessageSuccess(Message message) {
                                         if (mAdapter != null) {
@@ -218,14 +259,14 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
             mProvideUserAvatarCallbacks.add(provideUserAvatarCallback);
             if (!isLoadingUserAvatar) {
                 LoadUserData.loadUserData(mExecutor, new Handler(), mRedditDataRoomDatabase,
-                        username, mRetrofit, iconImageUrl -> {
-                    isLoadingUserAvatar = false;
-                    mUserAvatar = iconImageUrl == null ? "" : iconImageUrl;
-                    for (ProvideUserAvatarCallback provideUserAvatarCallbackInArrayList : mProvideUserAvatarCallbacks) {
-                        provideUserAvatarCallbackInArrayList.fetchAvatarSuccess(iconImageUrl);
-                    }
-                    mProvideUserAvatarCallbacks.clear();
-                });
+                        accessToken, username, mOauthRetrofit, mRetrofit, iconImageUrl -> {
+                            isLoadingUserAvatar = false;
+                            mUserAvatar = iconImageUrl == null ? "" : iconImageUrl;
+                            for (ProvideUserAvatarCallback provideUserAvatarCallbackInArrayList : mProvideUserAvatarCallbacks) {
+                                provideUserAvatarCallbackInArrayList.fetchAvatarSuccess(iconImageUrl);
+                            }
+                            mProvideUserAvatarCallbacks.clear();
+                        });
             }
         } else {
             provideUserAvatarCallback.fetchAvatarSuccess(mUserAvatar);
@@ -233,7 +274,7 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
     }
 
     public void delayTransition() {
-        TransitionManager.beginDelayedTransition(binding.recyclerViewViewPrivateMessages, new AutoTransition());
+        TransitionManager.beginDelayedTransition(binding.recyclerViewViewPrivateMessagesActivity, new AutoTransition());
     }
 
     private void goToBottom() {
@@ -286,11 +327,10 @@ public class ViewPrivateMessagesActivity extends BaseActivity implements Activit
         binding.getRoot().setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
         applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutViewPrivateMessagesActivity,
                 null, binding.toolbarViewPrivateMessagesActivity);
-        binding.editTextDividerViewPrivateMessagesActivity.setBackgroundColor(mCustomThemeWrapper.getDividerColor());
+        binding.cardViewViewPrivateMessagesActivity.setCardBackgroundColor(mCustomThemeWrapper.getFilledCardViewBackgroundColor());
         binding.editTextViewPrivateMessagesActivity.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());
         mSecondaryTextColor = mCustomThemeWrapper.getSecondaryTextColor();
         binding.editTextViewPrivateMessagesActivity.setHintTextColor(mSecondaryTextColor);
-        binding.editTextWrapperLinearLayoutViewPrivateMessagesActivity.setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
         mSendMessageIconColor = mCustomThemeWrapper.getSendMessageIconColor();
         binding.sendImageViewViewPrivateMessagesActivity.setColorFilter(mSendMessageIconColor, android.graphics.PorterDuff.Mode.SRC_IN);
         if (typeface != null) {

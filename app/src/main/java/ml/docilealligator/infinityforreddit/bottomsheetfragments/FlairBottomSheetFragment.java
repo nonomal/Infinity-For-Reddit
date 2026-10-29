@@ -3,50 +3,53 @@ package ml.docilealligator.infinityforreddit.bottomsheetfragments;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import org.greenrobot.eventbus.EventBus;
 
-import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import ml.docilealligator.infinityforreddit.FetchFlairs;
-import ml.docilealligator.infinityforreddit.Flair;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.adapters.FlairBottomSheetRecyclerViewAdapter;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
-import ml.docilealligator.infinityforreddit.customviews.LandscapeExpandedBottomSheetDialogFragment;
+import ml.docilealligator.infinityforreddit.customviews.LandscapeExpandedRoundedBottomSheetDialogFragment;
 import ml.docilealligator.infinityforreddit.databinding.FragmentFlairBottomSheetBinding;
 import ml.docilealligator.infinityforreddit.events.FlairSelectedEvent;
+import ml.docilealligator.infinityforreddit.subreddit.FetchFlairs;
+import ml.docilealligator.infinityforreddit.subreddit.Flair;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
 
 
-/**
- * A simple {@link Fragment} subclass.
- */
-public class FlairBottomSheetFragment extends LandscapeExpandedBottomSheetDialogFragment {
+public class FlairBottomSheetFragment extends LandscapeExpandedRoundedBottomSheetDialogFragment {
 
     public static final String EXTRA_SUBREDDIT_NAME = "ESN";
-    public static final String EXTRA_VIEW_POST_DETAIL_FRAGMENT_ID = "EPFI";
+    public static final String EXTRA_CALLING_FRAGMENT_ID = "ECFI";
+    public static final String EXTRA_SHOW_REMOVE_FLAIR_OPTION = "ESRFO";
     @Inject
     @Named("oauth")
     Retrofit mOauthRetrofit;
     @Inject
     CustomThemeWrapper mCustomThemeWrapper;
+    @Inject
+    Executor mExecutor;
     private String mSubredditName;
     private BaseActivity mActivity;
+    private Handler mHandler;
     private FlairBottomSheetRecyclerViewAdapter mAdapter;
     private FragmentFlairBottomSheetBinding binding;
 
@@ -65,13 +68,13 @@ public class FlairBottomSheetFragment extends LandscapeExpandedBottomSheetDialog
             Utils.setFontToAllTextViews(binding.getRoot(), mActivity.typeface);
         }
 
-        long viewPostFragmentId = getArguments().getLong(EXTRA_VIEW_POST_DETAIL_FRAGMENT_ID, -1);
+        long callingFragmentId = getArguments().getLong(EXTRA_CALLING_FRAGMENT_ID, -1);
         mAdapter = new FlairBottomSheetRecyclerViewAdapter(mActivity, mCustomThemeWrapper, flair -> {
-            if (viewPostFragmentId <= 0) {
+            if (callingFragmentId <= 0) {
                 //PostXXXActivity
                 ((FlairSelectionCallback) mActivity).flairSelected(flair);
             } else {
-                EventBus.getDefault().post(new FlairSelectedEvent(viewPostFragmentId, flair));
+                EventBus.getDefault().post(new FlairSelectedEvent(callingFragmentId, flair));
             }
             dismiss();
         });
@@ -80,18 +83,32 @@ public class FlairBottomSheetFragment extends LandscapeExpandedBottomSheetDialog
 
         mSubredditName = getArguments().getString(EXTRA_SUBREDDIT_NAME);
 
+        mHandler = new Handler(Looper.getMainLooper());
+
         fetchFlairs();
+
+        if (getArguments().getBoolean(EXTRA_SHOW_REMOVE_FLAIR_OPTION, false)) {
+            binding.removeFlairTextViewFlairBottomSheetFragment.setVisibility(View.VISIBLE);
+            binding.removeFlairTextViewFlairBottomSheetFragment.setOnClickListener(view -> {
+                EventBus.getDefault().post(new FlairSelectedEvent(callingFragmentId, new Flair("", "", false)));
+                dismiss();
+            });
+        }
 
         return binding.getRoot();
     }
 
     private void fetchFlairs() {
-        FetchFlairs.fetchFlairsInSubreddit(mOauthRetrofit, mActivity.accessToken,
+        FetchFlairs.fetchFlairsInSubreddit(mExecutor, mHandler, mOauthRetrofit, mActivity.accessToken,
                 mSubredditName, new FetchFlairs.FetchFlairsInSubredditListener() {
                     @Override
-                    public void fetchSuccessful(ArrayList<Flair> flairs) {
+                    public void fetchSuccessful(List<Flair> flairs) {
+                        if (binding == null) {
+                            return;
+                        }
+
                         binding.progressBarFlairBottomSheetFragment.setVisibility(View.GONE);
-                        if (flairs == null || flairs.size() == 0) {
+                        if (flairs == null || flairs.isEmpty()) {
                             binding.errorTextViewFlairBottomSheetFragment.setVisibility(View.VISIBLE);
                             binding.errorTextViewFlairBottomSheetFragment.setText(R.string.no_flair);
                         } else {
@@ -102,6 +119,10 @@ public class FlairBottomSheetFragment extends LandscapeExpandedBottomSheetDialog
 
                     @Override
                     public void fetchFailed() {
+                        if (binding == null) {
+                            return;
+                        }
+
                         binding.progressBarFlairBottomSheetFragment.setVisibility(View.GONE);
                         binding.errorTextViewFlairBottomSheetFragment.setVisibility(View.VISIBLE);
                         binding.errorTextViewFlairBottomSheetFragment.setText(R.string.error_loading_flairs);
@@ -122,6 +143,12 @@ public class FlairBottomSheetFragment extends LandscapeExpandedBottomSheetDialog
     public void onAttach(@NonNull Context context) {
         super.onAttach(context);
         mActivity = (BaseActivity) context;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding = null;
     }
 
     public interface FlairSelectionCallback {

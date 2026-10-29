@@ -1,15 +1,22 @@
 package ml.docilealligator.infinityforreddit.subreddit;
 
+import android.os.Handler;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.MutableLiveData;
 import androidx.paging.DataSource;
 
-import ml.docilealligator.infinityforreddit.SortType;
+import java.util.concurrent.Executor;
+
+import ml.docilealligator.infinityforreddit.thing.SortType;
 import retrofit2.Retrofit;
 
 public class SubredditListingDataSourceFactory extends DataSource.Factory {
+    private final Executor executor;
+    private final Handler handler;
     private final Retrofit retrofit;
+    private final Retrofit oauthRetrofit;
     private final String query;
     private SortType sortType;
     @Nullable
@@ -21,9 +28,13 @@ public class SubredditListingDataSourceFactory extends DataSource.Factory {
     private SubredditListingDataSource subredditListingDataSource;
     private final MutableLiveData<SubredditListingDataSource> subredditListingDataSourceMutableLiveData;
 
-    SubredditListingDataSourceFactory(Retrofit retrofit, String query, SortType sortType, @Nullable String accessToken,
-                                      @NonNull String accountName, boolean nsfw) {
+    SubredditListingDataSourceFactory(Executor executor, Handler handler, Retrofit retrofit, Retrofit oauthRetrofit,
+                                      String query, SortType sortType,
+                                      @Nullable String accessToken, @NonNull String accountName, boolean nsfw) {
+        this.executor = executor;
+        this.handler = handler;
         this.retrofit = retrofit;
+        this.oauthRetrofit = oauthRetrofit;
         this.query = query;
         this.sortType = sortType;
         this.accessToken = accessToken;
@@ -35,8 +46,8 @@ public class SubredditListingDataSourceFactory extends DataSource.Factory {
     @NonNull
     @Override
     public DataSource create() {
-        subredditListingDataSource = new SubredditListingDataSource(retrofit, query, sortType, accessToken,
-                accountName, nsfw);
+        subredditListingDataSource = new SubredditListingDataSource(executor, handler, retrofit,
+                oauthRetrofit, query, sortType, accessToken, accountName, nsfw);
         subredditListingDataSourceMutableLiveData.postValue(subredditListingDataSource);
         return subredditListingDataSource;
     }

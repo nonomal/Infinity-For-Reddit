@@ -11,6 +11,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -18,6 +20,10 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -31,7 +37,7 @@ import javax.inject.Named;
 
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.commentfilter.CommentFilter;
 import ml.docilealligator.infinityforreddit.commentfilter.SaveCommentFilter;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
@@ -46,6 +52,7 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
     public static final String RETURN_EXTRA_COMMENT_FILTER = "RECF";
     private static final String COMMENT_FILTER_STATE = "CFS";
     private static final String ORIGINAL_NAME_STATE = "ONS";
+    private static final String DISPLAY_MODE_SELECTED_ITEM_INDEX_STATE = "DMSIIS";
     @Inject
     RedditDataRoomDatabase mRedditDataRoomDatabase;
     @Inject
@@ -70,7 +77,7 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         ((Infinity) getApplication()).getAppComponent().inject(this);
 
-        setImmersiveModeNotApplicable();
+        setImmersiveModeNotApplicableBelowAndroid16();
 
         super.onCreate(savedInstanceState);
         binding = ActivityCustomizeCommentFilterBinding.inflate(getLayoutInflater());
@@ -78,8 +85,40 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
 
         applyCustomTheme();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isChangeStatusBarIconColor()) {
-            addOnOffsetChangedListener(binding.appbarLayoutCustomizeCommentFilterActivity);
+        if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            if (isChangeStatusBarIconColor()) {
+                addOnOffsetChangedListener(binding.appbarLayoutCustomizeCommentFilterActivity);
+            }
+
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets windowInsets = Utils.getInsets(insets, false, isForcedImmersiveInterface());
+                    Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
+
+                    setMargins(binding.toolbarCustomizeCommentFilterActivity,
+                            windowInsets.left,
+                            windowInsets.top,
+                            windowInsets.right,
+                            BaseActivity.IGNORE_MARGIN);
+
+                    binding.contentWrapperViewCustomizeCommentFilterActivity.setPadding(
+                            windowInsets.left,
+                            0,
+                            windowInsets.right,
+                            windowInsets.bottom
+                    );
+
+                    setMargins(binding.contentWrapperViewCustomizeCommentFilterActivity,
+                            BaseActivity.IGNORE_MARGIN,
+                            BaseActivity.IGNORE_MARGIN,
+                            BaseActivity.IGNORE_MARGIN,
+                            imeInsets.bottom);
+
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
         }
 
         setSupportActionBar(binding.toolbarCustomizeCommentFilterActivity);
@@ -120,6 +159,7 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
         if (savedInstanceState != null) {
             commentFilter = savedInstanceState.getParcelable(COMMENT_FILTER_STATE);
             originalName = savedInstanceState.getString(ORIGINAL_NAME_STATE);
+            binding.displayModeSpinnerCustomizeCommentFilterActivity.setSelection(savedInstanceState.getInt(DISPLAY_MODE_SELECTED_ITEM_INDEX_STATE), false);
         } else {
             commentFilter = getIntent().getParcelableExtra(EXTRA_COMMENT_FILTER);
             if (commentFilter == null) {
@@ -138,6 +178,7 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
 
     private void bindView() {
         binding.nameTextInputEditTextCustomizeCommentFilterActivity.setText(commentFilter.name);
+        binding.displayModeSpinnerCustomizeCommentFilterActivity.setSelection(commentFilter.displayMode == CommentFilter.DisplayMode.REMOVE_COMMENT ? 0 : 1);
         binding.excludeStringsTextInputEditTextCustomizeCommentFilterActivity.setText(commentFilter.excludeStrings);
         binding.excludeUsersTextInputEditTextCustomizeCommentFilterActivity.setText(commentFilter.excludeUsers);
         binding.minVoteTextInputEditTextCustomizeCommentFilterActivity.setText(Integer.toString(commentFilter.minVote));
@@ -172,32 +213,66 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
     @Override
     protected void applyCustomTheme() {
         binding.getRoot().setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
-        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutCustomizeCommentFilterActivity, binding.collapsingToolbarLayoutCustomizeCommentFilterActivity, binding.toolbarCustomizeCommentFilterActivity);
+        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutCustomizeCommentFilterActivity,
+                binding.collapsingToolbarLayoutCustomizeCommentFilterActivity, binding.toolbarCustomizeCommentFilterActivity);
+        applyAppBarScrollFlagsIfApplicable(binding.collapsingToolbarLayoutCustomizeCommentFilterActivity);
         int primaryTextColor = mCustomThemeWrapper.getPrimaryTextColor();
         int primaryIconColor = mCustomThemeWrapper.getPrimaryIconColor();
-        Drawable cursorDrawable = Utils.getTintedDrawable(this, R.drawable.edit_text_cursor, primaryTextColor);
+        int filledCardViewBackgroundColor = mCustomThemeWrapper.getFilledCardViewBackgroundColor();
+
+        binding.nameCardViewCustomizeCommentFilterActivity.setCardBackgroundColor(filledCardViewBackgroundColor);
+        binding.nameExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
         binding.nameTextInputLayoutCustomizeCommentFilterActivity.setBoxStrokeColor(primaryTextColor);
         binding.nameTextInputLayoutCustomizeCommentFilterActivity.setDefaultHintTextColor(ColorStateList.valueOf(primaryTextColor));
         binding.nameTextInputEditTextCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+
+        binding.displayModeCardViewCustomizeCommentFilterActivity.setCardBackgroundColor(filledCardViewBackgroundColor);
+        binding.displayModeExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+        binding.displayModeTitleTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+        binding.displayModeSpinnerCustomizeCommentFilterActivity.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                View child = parent.getChildAt(0);
+                if (child instanceof TextView) {
+                    ((TextView) child).setTextColor(primaryTextColor);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+
+        binding.excludeStringsCardViewCustomizeCommentFilterActivity.setCardBackgroundColor(filledCardViewBackgroundColor);
+        binding.excludeStringsExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
         binding.excludeStringsTextInputLayoutCustomizeCommentFilterActivity.setBoxStrokeColor(primaryTextColor);
         binding.excludeStringsTextInputLayoutCustomizeCommentFilterActivity.setDefaultHintTextColor(ColorStateList.valueOf(primaryTextColor));
         binding.excludeStringsTextInputEditTextCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+
+        binding.excludeUsersCardViewCustomizeCommentFilterActivity.setCardBackgroundColor(filledCardViewBackgroundColor);
+        binding.excludeUsersExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+        binding.excludeUsersTextInputLayoutCustomizeCommentFilterActivity.setBoxStrokeColor(primaryTextColor);
         binding.excludeUsersTextInputLayoutCustomizeCommentFilterActivity.setDefaultHintTextColor(ColorStateList.valueOf(primaryTextColor));
         binding.excludeUsersTextInputEditTextCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
         binding.addUsersImageViewCustomizeCommentFilterActivity.setImageDrawable(Utils.getTintedDrawable(this, R.drawable.ic_add_24dp, primaryIconColor));
+
+        binding.voteCardViewCustomizeCommentFilterActivity.setCardBackgroundColor(filledCardViewBackgroundColor);
+        binding.minVoteExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
         binding.minVoteTextInputLayoutCustomizeCommentFilterActivity.setBoxStrokeColor(primaryTextColor);
         binding.minVoteTextInputLayoutCustomizeCommentFilterActivity.setDefaultHintTextColor(ColorStateList.valueOf(primaryTextColor));
         binding.minVoteTextInputEditTextCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
+        binding.maxVoteExplanationTextViewCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
         binding.maxVoteTextInputLayoutCustomizeCommentFilterActivity.setBoxStrokeColor(primaryTextColor);
         binding.maxVoteTextInputLayoutCustomizeCommentFilterActivity.setDefaultHintTextColor(ColorStateList.valueOf(primaryTextColor));
         binding.maxVoteTextInputEditTextCustomizeCommentFilterActivity.setTextColor(primaryTextColor);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            binding.nameTextInputEditTextCustomizeCommentFilterActivity.setTextCursorDrawable(cursorDrawable);
-            binding.excludeStringsTextInputEditTextCustomizeCommentFilterActivity.setTextCursorDrawable(cursorDrawable);
-            binding.excludeUsersTextInputEditTextCustomizeCommentFilterActivity.setTextCursorDrawable(cursorDrawable);
-            binding.minVoteTextInputEditTextCustomizeCommentFilterActivity.setTextCursorDrawable(cursorDrawable);
-            binding.maxVoteTextInputEditTextCustomizeCommentFilterActivity.setTextCursorDrawable(cursorDrawable);
+            binding.nameTextInputLayoutCustomizeCommentFilterActivity.setCursorColor(ColorStateList.valueOf(primaryTextColor));
+            binding.excludeStringsTextInputLayoutCustomizeCommentFilterActivity.setCursorColor(ColorStateList.valueOf(primaryTextColor));
+            binding.excludeUsersTextInputLayoutCustomizeCommentFilterActivity.setCursorColor(ColorStateList.valueOf(primaryTextColor));
+            binding.minVoteTextInputLayoutCustomizeCommentFilterActivity.setCursorColor(ColorStateList.valueOf(primaryTextColor));
+            binding.maxVoteTextInputLayoutCustomizeCommentFilterActivity.setCursorColor(ColorStateList.valueOf(primaryTextColor));
         } else {
             setCursorDrawableColor(binding.nameTextInputEditTextCustomizeCommentFilterActivity, primaryTextColor);
             setCursorDrawableColor(binding.excludeStringsTextInputEditTextCustomizeCommentFilterActivity, primaryTextColor);
@@ -299,6 +374,8 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
 
     private void constructCommentFilter() throws PatternSyntaxException {
         commentFilter.name = binding.nameTextInputEditTextCustomizeCommentFilterActivity.getText().toString();
+        commentFilter.displayMode = binding.displayModeSpinnerCustomizeCommentFilterActivity.getSelectedItemPosition() == 0 ?
+                CommentFilter.DisplayMode.REMOVE_COMMENT : CommentFilter.DisplayMode.COLLAPSE_COMMENT;
         commentFilter.excludeStrings = binding.excludeStringsTextInputEditTextCustomizeCommentFilterActivity.getText().toString();
         commentFilter.excludeUsers = binding.excludeUsersTextInputEditTextCustomizeCommentFilterActivity.getText().toString();
         commentFilter.maxVote = binding.maxVoteTextInputEditTextCustomizeCommentFilterActivity.getText() == null || binding.maxVoteTextInputEditTextCustomizeCommentFilterActivity.getText().toString().equals("") ? -1 : Integer.parseInt(binding.maxVoteTextInputEditTextCustomizeCommentFilterActivity.getText().toString());
@@ -310,5 +387,6 @@ public class CustomizeCommentFilterActivity extends BaseActivity {
         super.onSaveInstanceState(outState);
         outState.putParcelable(COMMENT_FILTER_STATE, commentFilter);
         outState.putString(ORIGINAL_NAME_STATE, originalName);
+        outState.putInt(DISPLAY_MODE_SELECTED_ITEM_INDEX_STATE, binding.displayModeSpinnerCustomizeCommentFilterActivity.getSelectedItemPosition());
     }
 }

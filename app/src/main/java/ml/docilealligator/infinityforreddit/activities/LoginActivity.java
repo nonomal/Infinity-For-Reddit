@@ -1,6 +1,7 @@
 package ml.docilealligator.infinityforreddit.activities;
 
-import android.app.Activity;
+import static ml.docilealligator.infinityforreddit.utils.UtilsKt.getChromeCustomTabPackageName;
+
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -15,16 +16,23 @@ import android.view.InflateException;
 import android.view.MenuItem;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.greenrobot.eventbus.EventBus;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -36,15 +44,15 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import me.saket.bettermovementmethod.BetterLinkMovementMethod;
-import ml.docilealligator.infinityforreddit.FetchMyInfo;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.account.FetchMyInfo;
 import ml.docilealligator.infinityforreddit.apis.RedditAPI;
 import ml.docilealligator.infinityforreddit.asynctasks.ParseAndInsertNewAccount;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
-import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.databinding.ActivityLoginBinding;
+import ml.docilealligator.infinityforreddit.events.NewUserLoggedInEvent;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
@@ -55,7 +63,6 @@ import retrofit2.Retrofit;
 
 public class LoginActivity extends BaseActivity {
 
-    private static final String ENABLE_DOM_STATE = "EDS";
     private static final String IS_AGREE_TO_USER_AGGREMENT_STATE = "IATUAS";
 
     @Inject
@@ -77,15 +84,14 @@ public class LoginActivity extends BaseActivity {
     @Inject
     Executor mExecutor;
     private String authCode;
-    private boolean enableDom = false;
-    private boolean isAgreeToUserAgreement = false;
+    private boolean isAgreeToUserAgreement = true;
     private ActivityLoginBinding binding;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         ((Infinity) getApplication()).getAppComponent().inject(this);
 
-        setImmersiveModeNotApplicable();
+        setImmersiveModeNotApplicableBelowAndroid16();
 
         super.onCreate(savedInstanceState);
         binding = ActivityLoginBinding.inflate(getLayoutInflater());
@@ -101,8 +107,39 @@ public class LoginActivity extends BaseActivity {
 
         applyCustomTheme();
 
-        if (mSharedPreferences.getBoolean(SharedPreferencesUtils.SWIPE_RIGHT_TO_GO_BACK, true)) {
-            Slidr.attach(this);
+        if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            if (isChangeStatusBarIconColor()) {
+                addOnOffsetChangedListener(binding.appbarLayoutLoginActivity);
+            }
+
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, true, isForcedImmersiveInterface());
+
+                    setMargins(binding.toolbarLoginActivity,
+                            allInsets.left,
+                            allInsets.top,
+                            allInsets.right,
+                            BaseActivity.IGNORE_MARGIN);
+
+                    binding.linearLayoutLoginActivity.setPadding(
+                            allInsets.left,
+                            0,
+                            allInsets.right,
+                            allInsets.bottom
+                    );
+
+                    setMargins(binding.fabLoginActivity,
+                            BaseActivity.IGNORE_MARGIN,
+                            BaseActivity.IGNORE_MARGIN,
+                            (int) Utils.convertDpToPixel(16, LoginActivity.this) + allInsets.right,
+                            (int) Utils.convertDpToPixel(16, LoginActivity.this) + allInsets.bottom);
+
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
         }
 
         setSupportActionBar(binding.toolbarLoginActivity);
@@ -110,28 +147,16 @@ public class LoginActivity extends BaseActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         if (savedInstanceState != null) {
-            enableDom = savedInstanceState.getBoolean(ENABLE_DOM_STATE);
             isAgreeToUserAgreement = savedInstanceState.getBoolean(IS_AGREE_TO_USER_AGGREMENT_STATE);
         }
 
-        binding.fabLoginActivity.setOnClickListener(view -> {
-            new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
-                    .setTitle(R.string.have_trouble_login_title)
-                    .setMessage(R.string.have_trouble_login_message)
-                    .setPositiveButton(R.string.yes, (dialogInterface, i) -> {
-                        enableDom = !enableDom;
-                        ActivityCompat.recreate(this);
-                    })
-                    .setNegativeButton(R.string.no, null)
-                    .show();
-        });
-
-        if (enableDom) {
-            binding.twoFaInfOTextViewLoginActivity.setVisibility(View.GONE);
-        }
-
         binding.webviewLoginActivity.getSettings().setJavaScriptEnabled(true);
-        binding.webviewLoginActivity.getSettings().setDomStorageEnabled(enableDom);
+
+        String userAgent = binding.webviewLoginActivity.getSettings().getUserAgentString();
+        String chromeUserAgent = userAgent
+                .replace("; wv)", ")")
+                .replace("Version/4.0 ", "");
+        binding.webviewLoginActivity.getSettings().setUserAgentString(chromeUserAgent);
 
         Uri baseUri = Uri.parse(APIUtils.OAUTH_URL);
         Uri.Builder uriBuilder = baseUri.buildUpon();
@@ -143,6 +168,20 @@ public class LoginActivity extends BaseActivity {
         uriBuilder.appendQueryParameter(APIUtils.SCOPE_KEY, APIUtils.SCOPE);
 
         String url = uriBuilder.toString();
+
+        binding.internetDisconnectedErrorRetryButtonLoginActivity.setOnClickListener(view -> {
+            recreate();
+        });
+
+        binding.fabLoginActivity.setOnClickListener(view -> {
+            if (getChromeCustomTabPackageName(this) == null) {
+                Toast.makeText(this, R.string.login_chrome_required, Toast.LENGTH_SHORT).show();
+            } else {
+                Intent intent = new Intent(this, LoginChromeCustomTabActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        });
 
         CookieManager.getInstance().removeAllCookies(aBoolean -> {
         });
@@ -179,19 +218,19 @@ public class LoginActivity extends BaseActivity {
                                         String accessToken = responseJSON.getString(APIUtils.ACCESS_TOKEN_KEY);
                                         String refreshToken = responseJSON.getString(APIUtils.REFRESH_TOKEN_KEY);
 
-                                        FetchMyInfo.fetchAccountInfo(mOauthRetrofit, mRedditDataRoomDatabase,
-                                                accessToken, new FetchMyInfo.FetchMyInfoListener() {
+                                        FetchMyInfo.fetchAccountInfo(mExecutor, mHandler, mOauthRetrofit,
+                                                mRedditDataRoomDatabase, accessToken,
+                                                new FetchMyInfo.FetchMyInfoListener() {
                                                     @Override
-                                                    public void onFetchMyInfoSuccess(String name, String profileImageUrl, String bannerImageUrl, int karma) {
+                                                    public void onFetchMyInfoSuccess(String name, String profileImageUrl, String bannerImageUrl, int karma, boolean isMod) {
                                                         mCurrentAccountSharedPreferences.edit().putString(SharedPreferencesUtils.ACCESS_TOKEN, accessToken)
                                                                 .putString(SharedPreferencesUtils.ACCOUNT_NAME, name)
                                                                 .putString(SharedPreferencesUtils.ACCOUNT_IMAGE_URL, profileImageUrl).apply();
                                                         mCurrentAccountSharedPreferences.edit().remove(SharedPreferencesUtils.SUBSCRIBED_THINGS_SYNC_TIME).apply();
                                                         ParseAndInsertNewAccount.parseAndInsertNewAccount(mExecutor, new Handler(), name, accessToken, refreshToken, profileImageUrl, bannerImageUrl,
-                                                                karma, authCode, mRedditDataRoomDatabase.accountDao(),
+                                                                karma, isMod, authCode, mRedditDataRoomDatabase.accountDao(),
                                                                 () -> {
-                                                                    Intent resultIntent = new Intent();
-                                                                    setResult(Activity.RESULT_OK, resultIntent);
+                                                                    EventBus.getDefault().post(new NewUserLoggedInEvent());
                                                                     finish();
                                                                 });
                                                     }
@@ -249,6 +288,15 @@ public class LoginActivity extends BaseActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
             }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame() && !Utils.isConnectedToInternet(LoginActivity.this)) {
+                    binding.internetDisconnectedErrorLinearLayoutLoginActivity.setVisibility(View.VISIBLE);
+                } else {
+                    super.onReceivedError(view, request, error);
+                }
+            }
         });
 
         if (!isAgreeToUserAgreement) {
@@ -276,12 +324,23 @@ public class LoginActivity extends BaseActivity {
                     .setCancelable(false)
                     .show();
         }
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (binding.webviewLoginActivity.canGoBack()) {
+                    binding.webviewLoginActivity.goBack();
+                } else {
+                    setEnabled(false);
+                    triggerBackPress();
+                }
+            }
+        });
     }
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putBoolean(ENABLE_DOM_STATE, enableDom);
         outState.putBoolean(IS_AGREE_TO_USER_AGGREMENT_STATE, isAgreeToUserAgreement);
     }
 
@@ -302,14 +361,22 @@ public class LoginActivity extends BaseActivity {
 
     @Override
     protected void applyCustomTheme() {
-        binding.coordinatorLayoutLoginActivity.setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
+        int backgroundColor = mCustomThemeWrapper.getBackgroundColor();
+        binding.getRoot().setBackgroundColor(backgroundColor);
         applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutLoginActivity, null, binding.toolbarLoginActivity);
-        binding.twoFaInfOTextViewLoginActivity.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());
-        Drawable infoDrawable = Utils.getTintedDrawable(this, R.drawable.ic_info_preference_24dp, mCustomThemeWrapper.getPrimaryIconColor());
+        int primaryTextColor = mCustomThemeWrapper.getPrimaryTextColor();
+        binding.twoFaInfOTextViewLoginActivity.setTextColor(primaryTextColor);
+        Drawable infoDrawable = Utils.getTintedDrawable(this, R.drawable.ic_info_preference_day_night_24dp, mCustomThemeWrapper.getPrimaryIconColor());
         binding.twoFaInfOTextViewLoginActivity.setCompoundDrawablesWithIntrinsicBounds(infoDrawable, null, null, null);
+        binding.internetDisconnectedErrorLinearLayoutLoginActivity.setBackgroundColor(backgroundColor);
+        binding.internetDisconnectedErrorTextViewLoginActivity.setTextColor(primaryTextColor);
+        binding.internetDisconnectedErrorRetryButtonLoginActivity.setTextColor(mCustomThemeWrapper.getButtonTextColor());
+        binding.internetDisconnectedErrorRetryButtonLoginActivity.setBackgroundColor(mCustomThemeWrapper.getColorPrimaryLightTheme());
         applyFABTheme(binding.fabLoginActivity);
         if (typeface != null) {
             binding.twoFaInfOTextViewLoginActivity.setTypeface(typeface);
+            binding.internetDisconnectedErrorTextViewLoginActivity.setTypeface(typeface);
+            binding.internetDisconnectedErrorRetryButtonLoginActivity.setTypeface(typeface);
         }
     }
 

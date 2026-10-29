@@ -2,12 +2,17 @@ package ml.docilealligator.infinityforreddit;
 
 import android.app.Activity;
 import android.app.Application;
+import android.app.WallpaperColors;
+import android.app.WallpaperManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.net.ConnectivityManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.WindowManager;
 import android.widget.Toast;
 
@@ -25,18 +30,26 @@ import com.livefront.bridge.SavedStateHandler;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 
+import java.util.concurrent.Executor;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 
 import ml.docilealligator.infinityforreddit.activities.LockScreenActivity;
 import ml.docilealligator.infinityforreddit.broadcastreceivers.NetworkWifiStatusReceiver;
 import ml.docilealligator.infinityforreddit.broadcastreceivers.WallpaperChangeReceiver;
+import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.events.ChangeAppLockEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeNetworkStatusEvent;
 import ml.docilealligator.infinityforreddit.events.ToggleSecureModeEvent;
 import ml.docilealligator.infinityforreddit.font.ContentFontFamily;
 import ml.docilealligator.infinityforreddit.font.FontFamily;
 import ml.docilealligator.infinityforreddit.font.TitleFontFamily;
+import ml.docilealligator.infinityforreddit.module.AppComponent;
+import ml.docilealligator.infinityforreddit.module.DaggerAppComponent;
+import ml.docilealligator.infinityforreddit.reminder.ReminderManager;
+import ml.docilealligator.infinityforreddit.utils.MaterialYouUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 
@@ -51,11 +64,33 @@ public class Infinity extends Application implements LifecycleObserver {
     private boolean canStartLockScreenActivity = false;
     private boolean isSecureMode;
     @Inject
+    public RedditDataRoomDatabase mRedditDataRoomDatabase;
+    @Inject
     @Named("default")
     SharedPreferences mSharedPreferences;
     @Inject
     @Named("security")
     SharedPreferences mSecuritySharedPreferences;
+    @Inject
+    @Named("internal")
+    SharedPreferences mInternalSharedPreferences;
+    @Inject
+    @Named("light_theme")
+    SharedPreferences lightThemeSharedPreferences;
+    @Inject
+    @Named("dark_theme")
+    SharedPreferences darkThemeSharedPreferences;
+    @Inject
+    @Named("amoled_theme")
+    SharedPreferences amoledThemeSharedPreferences;
+    @Inject
+    RedditDataRoomDatabase redditDataRoomDatabase;
+    @Inject
+    CustomThemeWrapper customThemeWrapper;
+    @Inject
+    Executor executor;
+    @Inject
+    ReminderManager reminderManager;
 
     @Override
     public void onCreate() {
@@ -157,9 +192,42 @@ public class Infinity extends Application implements LifecycleObserver {
 
         mNetworkWifiStatusReceiver =
                 new NetworkWifiStatusReceiver(() -> EventBus.getDefault().post(new ChangeNetworkStatusEvent(Utils.getConnectedNetwork(getApplicationContext()))));
-        registerReceiver(mNetworkWifiStatusReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mNetworkWifiStatusReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION), RECEIVER_NOT_EXPORTED);
+            registerReceiver(new WallpaperChangeReceiver(mSharedPreferences), new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED), RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(mNetworkWifiStatusReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+            registerReceiver(new WallpaperChangeReceiver(mSharedPreferences), new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED));
+        }
 
-        registerReceiver(new WallpaperChangeReceiver(mSharedPreferences), new IntentFilter(Intent.ACTION_WALLPAPER_CHANGED));
+        if (mSharedPreferences.getBoolean(SharedPreferencesUtils.ENABLE_MATERIAL_YOU, false)) {
+            int sentryColor = mInternalSharedPreferences.getInt(SharedPreferencesUtils.MATERIAL_YOU_SENTRY_COLOR, 0);
+            boolean sentryColorHasChanged = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (sentryColor != getColor(android.R.color.system_accent1_100)) {
+                    sentryColorHasChanged = true;
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                WallpaperManager wallpaperManager = WallpaperManager.getInstance(this);
+                WallpaperColors wallpaperColors = wallpaperManager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM);
+
+                if (wallpaperColors != null) {
+                    int colorPrimaryInt = wallpaperColors.getPrimaryColor().toArgb();
+                    if (sentryColor != colorPrimaryInt) {
+                        sentryColorHasChanged = true;
+                    }
+                }
+            }
+
+            if (sentryColorHasChanged) {
+                MaterialYouUtils.changeThemeASync(this, executor, new Handler(Looper.getMainLooper()),
+                        redditDataRoomDatabase, customThemeWrapper,
+                        lightThemeSharedPreferences, darkThemeSharedPreferences,
+                        amoledThemeSharedPreferences, mInternalSharedPreferences, null);
+            }
+        }
+
+        reminderManager.checkAndSetAllAlarms();
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
@@ -176,6 +244,10 @@ public class Infinity extends Application implements LifecycleObserver {
 
     public AppComponent getAppComponent() {
         return mAppComponent;
+    }
+
+    public CustomThemeWrapper getCustomThemeWrapper() {
+        return customThemeWrapper;
     }
 
     @Subscribe

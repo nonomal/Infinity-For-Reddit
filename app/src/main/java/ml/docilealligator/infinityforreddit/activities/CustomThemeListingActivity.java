@@ -3,6 +3,7 @@ package ml.docilealligator.infinityforreddit.activities;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
@@ -12,9 +13,15 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.ViewGroupCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
@@ -37,7 +44,8 @@ import javax.inject.Named;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.apis.ServerAPI;
 import ml.docilealligator.infinityforreddit.asynctasks.ChangeThemeName;
 import ml.docilealligator.infinityforreddit.asynctasks.DeleteTheme;
 import ml.docilealligator.infinityforreddit.asynctasks.GetCustomTheme;
@@ -46,18 +54,26 @@ import ml.docilealligator.infinityforreddit.bottomsheetfragments.CreateThemeBott
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.CustomThemeOptionsBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customtheme.CustomTheme;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
+import ml.docilealligator.infinityforreddit.customtheme.OnlineCustomThemeMetadata;
 import ml.docilealligator.infinityforreddit.databinding.ActivityCustomThemeListingBinding;
 import ml.docilealligator.infinityforreddit.events.RecreateActivityEvent;
 import ml.docilealligator.infinityforreddit.fragments.CustomThemeListingFragment;
 import ml.docilealligator.infinityforreddit.utils.CustomThemeSharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
 
 public class CustomThemeListingActivity extends BaseActivity implements
         CustomThemeOptionsBottomSheetFragment.CustomThemeOptionsBottomSheetFragmentListener,
         CreateThemeBottomSheetFragment.SelectBaseThemeBottomSheetFragmentListener,
         RecyclerViewContentScrollingInterface {
 
+    @Inject
+    @Named("online_custom_themes")
+    Retrofit onlineCustomThemesRetrofit;
     @Inject
     @Named("default")
     SharedPreferences sharedPreferences;
@@ -82,12 +98,13 @@ public class CustomThemeListingActivity extends BaseActivity implements
     private FragmentManager fragmentManager;
     private SectionsPagerAdapter sectionsPagerAdapter;
     private ActivityCustomThemeListingBinding binding;
+    private ActivityResultLauncher<Intent> customizeThemeActivityResultLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         ((Infinity) getApplication()).getAppComponent().inject(this);
 
-        setImmersiveModeNotApplicable();
+        setImmersiveModeNotApplicableBelowAndroid16();
 
         super.onCreate(savedInstanceState);
         binding = ActivityCustomThemeListingBinding.inflate(getLayoutInflater());
@@ -96,6 +113,42 @@ public class CustomThemeListingActivity extends BaseActivity implements
         EventBus.getDefault().register(this);
 
         applyCustomTheme();
+
+        if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            if (isChangeStatusBarIconColor()) {
+                addOnOffsetChangedListener(binding.appbarLayoutCustomizeThemeListingActivity);
+            }
+
+            ViewGroupCompat.installCompatInsetsDispatch(binding.getRoot());
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, false, isForcedImmersiveInterface());
+
+                    setMargins(binding.toolbarCustomizeThemeListingActivity,
+                            allInsets.left,
+                            allInsets.top,
+                            allInsets.right,
+                            BaseActivity.IGNORE_MARGIN);
+
+                    binding.viewPager2CustomizeThemeListingActivity.setPadding(
+                            allInsets.left,
+                            0,
+                            allInsets.right,
+                            0
+                    );
+
+                    setMargins(binding.fabCustomThemeListingActivity,
+                            BaseActivity.IGNORE_MARGIN,
+                            BaseActivity.IGNORE_MARGIN,
+                            (int) Utils.convertDpToPixel(16, CustomThemeListingActivity.this) + allInsets.right,
+                            (int) Utils.convertDpToPixel(16, CustomThemeListingActivity.this) + allInsets.bottom);
+
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
+        }
 
         setSupportActionBar(binding.toolbarCustomizeThemeListingActivity);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -167,9 +220,29 @@ public class CustomThemeListingActivity extends BaseActivity implements
     @Override
     protected void applyCustomTheme() {
         binding.coordinatorLayoutCustomThemeListingActivity.setBackgroundColor(customThemeWrapper.getBackgroundColor());
-        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutCustomizeThemeListingActivity, binding.collapsingToolbarLayoutCustomizeThemeListingActivity, binding.toolbarCustomizeThemeListingActivity);
+        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutCustomizeThemeListingActivity,
+                binding.collapsingToolbarLayoutCustomizeThemeListingActivity, binding.toolbarCustomizeThemeListingActivity);
+        applyAppBarScrollFlagsIfApplicable(binding.collapsingToolbarLayoutCustomizeThemeListingActivity);
         applyFABTheme(binding.fabCustomThemeListingActivity);
         applyTabLayoutTheme(binding.tabLayoutCustomizeThemeListingActivity);
+    }
+
+    @Override
+    public void editTheme(String themeName, @Nullable OnlineCustomThemeMetadata onlineCustomThemeMetadata, int indexInThemeList) {
+        Intent intent = new Intent(this, CustomizeThemeActivity.class);
+        intent.putExtra(CustomizeThemeActivity.EXTRA_THEME_NAME, themeName);
+        intent.putExtra(CustomizeThemeActivity.EXTRA_ONLINE_CUSTOM_THEME_METADATA, onlineCustomThemeMetadata);
+        intent.putExtra(CustomizeThemeActivity.EXTRA_INDEX_IN_THEME_LIST, indexInThemeList);
+
+        if (indexInThemeList >= 0) {
+            //Online theme
+            Fragment fragment = sectionsPagerAdapter.getOnlineThemeFragment();
+            if (fragment != null && ((CustomThemeListingFragment) fragment).getCustomizeThemeActivityResultLauncher() != null) {
+                ((CustomThemeListingFragment) fragment).getCustomizeThemeActivityResultLauncher().launch(intent);
+                return;
+            }
+        }
+        startActivity(intent);
     }
 
     @Override
@@ -260,6 +333,34 @@ public class CustomThemeListingActivity extends BaseActivity implements
         } else {
             Snackbar.make(binding.coordinatorLayoutCustomThemeListingActivity, R.string.cannot_find_theme, Snackbar.LENGTH_SHORT).show();
         }
+    }
+
+    @Override
+    public void shareTheme(OnlineCustomThemeMetadata onlineCustomThemeMetadata) {
+        onlineCustomThemesRetrofit.create(ServerAPI.class)
+                .getCustomTheme(onlineCustomThemeMetadata.name, onlineCustomThemeMetadata.username)
+                .enqueue(new Callback<>() {
+                    @Override
+                    public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
+                        if (response.isSuccessful()) {
+                            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                            if (clipboard != null) {
+                                ClipData clip = ClipData.newPlainText("simple text", response.body());
+                                clipboard.setPrimaryClip(clip);
+                                Snackbar.make(binding.coordinatorLayoutCustomThemeListingActivity, R.string.theme_copied, Snackbar.LENGTH_SHORT).show();
+                            } else {
+                                Snackbar.make(binding.coordinatorLayoutCustomThemeListingActivity, R.string.copy_theme_faied, Snackbar.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            Toast.makeText(CustomThemeListingActivity.this, response.message(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<String> call, @NonNull Throwable throwable) {
+                        Toast.makeText(CustomThemeListingActivity.this, R.string.cannot_download_theme_data, Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     @Subscribe
@@ -372,11 +473,11 @@ public class CustomThemeListingActivity extends BaseActivity implements
         }
 
         @Nullable
-        private Fragment getCurrentFragment() {
+        private Fragment getOnlineThemeFragment() {
             if (fragmentManager == null) {
                 return null;
             }
-            return fragmentManager.findFragmentByTag("f" + binding.viewPager2CustomizeThemeListingActivity.getCurrentItem());
+            return fragmentManager.findFragmentByTag("f1");
         }
 
         @Override

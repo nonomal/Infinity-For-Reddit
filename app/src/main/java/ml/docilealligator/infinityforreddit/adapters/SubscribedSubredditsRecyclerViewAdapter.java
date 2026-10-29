@@ -20,9 +20,9 @@ import java.util.concurrent.Executor;
 
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import me.zhanghai.android.fastscroll.PopupTextProvider;
-import ml.docilealligator.infinityforreddit.FavoriteThing;
+import ml.docilealligator.infinityforreddit.thing.FavoriteThing;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.activities.ViewSubredditDetailActivity;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
@@ -425,7 +425,7 @@ public class SubscribedSubredditsRecyclerViewAdapter extends RecyclerView.Adapte
 
     @NonNull
     @Override
-    public String getPopupText(int position) {
+    public CharSequence getPopupText(@NonNull View view, int position) {
         switch (getItemViewType(position)) {
             case VIEW_TYPE_SUBREDDIT:
                 if (hasClearSelectionRow && position == 0) {

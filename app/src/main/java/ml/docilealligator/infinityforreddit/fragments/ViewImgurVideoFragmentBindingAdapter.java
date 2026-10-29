@@ -1,8 +1,10 @@
 package ml.docilealligator.infinityforreddit.fragments;
 
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.google.android.exoplayer2.ui.PlayerView;
+import androidx.media3.ui.PlayerView;
+
 import com.google.android.material.bottomappbar.BottomAppBar;
 import com.google.android.material.button.MaterialButton;
 
@@ -11,6 +13,7 @@ import ml.docilealligator.infinityforreddit.databinding.FragmentViewImgurVideoBi
 
 class ViewImgurVideoFragmentBindingAdapter {
     private FragmentViewImgurVideoBinding binding;
+    private LinearLayout controller;
     private MaterialButton muteButton;
     private BottomAppBar bottomAppBar;
     private TextView titleTextView;
@@ -20,6 +23,7 @@ class ViewImgurVideoFragmentBindingAdapter {
 
     ViewImgurVideoFragmentBindingAdapter(FragmentViewImgurVideoBinding binding) {
         this.binding = binding;
+        controller = binding.getRoot().findViewById(R.id.linear_layout_exo_playback_control_view);
         muteButton = binding.getRoot().findViewById(R.id.mute_exo_playback_control_view);
         bottomAppBar = binding.getRoot().findViewById(R.id.bottom_navigation_exo_playback_control_view);
         titleTextView = binding.getRoot().findViewById(R.id.title_text_view_exo_playback_control_view);
@@ -30,6 +34,10 @@ class ViewImgurVideoFragmentBindingAdapter {
 
     PlayerView getRoot() {
         return binding.getRoot();
+    }
+
+    LinearLayout getController() {
+        return controller;
     }
 
     MaterialButton getMuteButton() {

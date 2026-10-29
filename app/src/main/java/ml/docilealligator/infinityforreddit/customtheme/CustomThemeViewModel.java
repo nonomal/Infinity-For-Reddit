@@ -11,7 +11,7 @@ import androidx.paging.PagingData;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import retrofit2.Retrofit;
 
 public class CustomThemeViewModel extends ViewModel {
@@ -48,8 +48,8 @@ public class CustomThemeViewModel extends ViewModel {
         return localCustomThemeRepository.getCurrentAmoledCustomTheme();
     }
 
-    public LiveData<PagingData<CustomTheme>> getOnlineCustomThemes() {
-        return onlineCustomThemeRepository.getOnlineCustomThemes();
+    public LiveData<PagingData<OnlineCustomThemeMetadata>> getOnlineCustomThemeMetadata() {
+        return onlineCustomThemeRepository.getOnlineCustomThemeMetadata();
     }
 
     public static class Factory extends ViewModelProvider.NewInstanceFactory {

@@ -1,7 +1,6 @@
 package ml.docilealligator.infinityforreddit.adapters;
 
 import android.content.res.ColorStateList;
-import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,9 +19,9 @@ import com.bumptech.glide.request.RequestOptions;
 import java.util.concurrent.Executor;
 
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
-import ml.docilealligator.infinityforreddit.NetworkState;
+import ml.docilealligator.infinityforreddit.state.NetworkState;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.asynctasks.CheckIsFollowingUser;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
@@ -129,7 +128,7 @@ public class UserListingRecyclerViewAdapter extends PagedListAdapter<UserData, R
                 ((DataViewHolder) holder).binding.userNameTextViewItemUserListing.setText(userData.getName());
 
                 if (!isMultiSelection) {
-                    CheckIsFollowingUser.checkIsFollowingUser(executor, new Handler(), redditDataRoomDatabase,
+                    CheckIsFollowingUser.checkIsFollowingUser(executor, activity.mHandler, redditDataRoomDatabase,
                             userData.getName(), accountName, new CheckIsFollowingUser.CheckIsFollowingUserListener() {
                                 @Override
                                 public void isSubscribed() {
@@ -140,7 +139,7 @@ public class UserListingRecyclerViewAdapter extends PagedListAdapter<UserData, R
                                 public void isNotSubscribed() {
                                     ((DataViewHolder) holder).binding.subscribeImageViewItemUserListing.setVisibility(View.VISIBLE);
                                     ((DataViewHolder) holder).binding.subscribeImageViewItemUserListing.setOnClickListener(view -> {
-                                        UserFollowing.followUser(oauthRetrofit, retrofit,
+                                        UserFollowing.followUser(executor, activity.mHandler, oauthRetrofit, retrofit,
                                                 accessToken, userData.getName(), accountName, redditDataRoomDatabase,
                                                 new UserFollowing.UserFollowingListener() {
                                                     @Override
@@ -264,7 +263,7 @@ public class UserListingRecyclerViewAdapter extends PagedListAdapter<UserData, R
         LoadingViewHolder(@NonNull ItemFooterLoadingBinding binding) {
             super(binding.getRoot());
             this.binding = binding;
-            binding.progressBarItemFooterLoading.setIndeterminateTintList(ColorStateList.valueOf(colorAccent));
+            binding.progressBarItemFooterLoading.setIndicatorColor(colorAccent);
         }
     }
 }

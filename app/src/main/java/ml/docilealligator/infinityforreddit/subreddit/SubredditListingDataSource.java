@@ -1,19 +1,24 @@
 package ml.docilealligator.infinityforreddit.subreddit;
 
+import android.os.Handler;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.MutableLiveData;
 import androidx.paging.PageKeyedDataSource;
 
 import java.util.ArrayList;
+import java.util.concurrent.Executor;
 
-import ml.docilealligator.infinityforreddit.NetworkState;
-import ml.docilealligator.infinityforreddit.SortType;
+import ml.docilealligator.infinityforreddit.state.NetworkState;
+import ml.docilealligator.infinityforreddit.thing.SortType;
 import retrofit2.Retrofit;
 
 public class SubredditListingDataSource extends PageKeyedDataSource<String, SubredditData> {
 
+    private final Executor executor;
     private final Retrofit retrofit;
+    private final Retrofit oauthRetrofit;
     private final String query;
     private final SortType sortType;
     @Nullable
@@ -21,6 +26,7 @@ public class SubredditListingDataSource extends PageKeyedDataSource<String, Subr
     @NonNull
     private final String accountName;
     private final boolean nsfw;
+    private Handler handler;
 
     private final MutableLiveData<NetworkState> paginationNetworkStateLiveData;
     private final MutableLiveData<NetworkState> initialLoadStateLiveData;
@@ -29,14 +35,18 @@ public class SubredditListingDataSource extends PageKeyedDataSource<String, Subr
     private LoadParams<String> params;
     private LoadCallback<String, SubredditData> callback;
 
-    SubredditListingDataSource(Retrofit retrofit, String query, SortType sortType, @Nullable String accessToken,
-                               @NonNull String accountName, boolean nsfw) {
+    SubredditListingDataSource(Executor executor, Handler handler, Retrofit retrofit, Retrofit oauthRetrofit,
+                               String query, SortType sortType,
+                               @Nullable String accessToken, @NonNull String accountName, boolean nsfw) {
+        this.executor = executor;
         this.retrofit = retrofit;
+        this.oauthRetrofit = oauthRetrofit;
         this.query = query;
         this.sortType = sortType;
         this.accessToken = accessToken;
         this.accountName = accountName;
         this.nsfw = nsfw;
+        this.handler = handler;
         paginationNetworkStateLiveData = new MutableLiveData<>();
         initialLoadStateLiveData = new MutableLiveData<>();
         hasSubredditLiveData = new MutableLiveData<>();
@@ -58,16 +68,12 @@ public class SubredditListingDataSource extends PageKeyedDataSource<String, Subr
     public void loadInitial(@NonNull LoadInitialParams<String> params, @NonNull LoadInitialCallback<String, SubredditData> callback) {
         initialLoadStateLiveData.postValue(NetworkState.LOADING);
 
-        FetchSubredditData.fetchSubredditListingData(retrofit, query, null, sortType.getType(), accessToken,
-                accountName, nsfw, new FetchSubredditData.FetchSubredditListingDataListener() {
+        FetchSubredditData.fetchSubredditListingData(executor, handler, retrofit, oauthRetrofit,
+                query, null, sortType.getType(), accessToken, accountName, nsfw,
+                new FetchSubredditData.FetchSubredditListingDataListener() {
                     @Override
                     public void onFetchSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
-                        if (subredditData.size() == 0) {
-                            hasSubredditLiveData.postValue(false);
-                        } else {
-                            hasSubredditLiveData.postValue(true);
-                        }
-
+                        hasSubredditLiveData.postValue(!subredditData.isEmpty());
                         callback.onResult(subredditData, null, after);
                         initialLoadStateLiveData.postValue(NetworkState.LOADED);
                     }
@@ -93,8 +99,9 @@ public class SubredditListingDataSource extends PageKeyedDataSource<String, Subr
             return;
         }
 
-        FetchSubredditData.fetchSubredditListingData(retrofit, query, params.key, sortType.getType(), accessToken,
-                accountName, nsfw, new FetchSubredditData.FetchSubredditListingDataListener() {
+        FetchSubredditData.fetchSubredditListingData(executor, handler, retrofit, oauthRetrofit,
+                query, params.key, sortType.getType(), accessToken, accountName, nsfw,
+                new FetchSubredditData.FetchSubredditListingDataListener() {
                     @Override
                     public void onFetchSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
                         callback.onResult(subredditData, after);

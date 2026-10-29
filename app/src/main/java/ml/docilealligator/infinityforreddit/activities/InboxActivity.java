@@ -15,7 +15,11 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.ViewGroupCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
@@ -34,16 +38,14 @@ import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import ml.docilealligator.infinityforreddit.ActivityToolbarInterface;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.apis.RedditAPI;
-import ml.docilealligator.infinityforreddit.asynctasks.SwitchAccount;
+import ml.docilealligator.infinityforreddit.asynctasks.AccountManagement;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
-import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.databinding.ActivityInboxBinding;
 import ml.docilealligator.infinityforreddit.events.ChangeInboxCountEvent;
 import ml.docilealligator.infinityforreddit.events.PassPrivateMessageEvent;
@@ -52,8 +54,8 @@ import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.InboxFragment;
 import ml.docilealligator.infinityforreddit.message.FetchMessage;
 import ml.docilealligator.infinityforreddit.message.Message;
+import ml.docilealligator.infinityforreddit.thing.SelectThingReturnKey;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
-import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -101,9 +103,7 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
 
         applyCustomTheme();
 
-        if (mSharedPreferences.getBoolean(SharedPreferencesUtils.SWIPE_RIGHT_TO_GO_BACK, true)) {
-            mSliderPanel = Slidr.attach(this);
-        }
+        attachSliderPanelIfApplicable();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Window window = getWindow();
@@ -112,20 +112,56 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
                 addOnOffsetChangedListener(binding.appbarLayoutInboxActivity);
             }
 
-            if (isImmersiveInterface()) {
+            if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     window.setDecorFitsSystemWindows(false);
                 } else {
                     window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
                 }
-                adjustToolbar(binding.toolbarInboxActivity);
+
+                ViewGroupCompat.installCompatInsetsDispatch(binding.getRoot());
+                ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                    @NonNull
+                    @Override
+                    public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                        Insets allInsets = Utils.getInsets(insets, false, isForcedImmersiveInterface());
+
+                        setMargins(binding.toolbarInboxActivity,
+                                allInsets.left,
+                                allInsets.top,
+                                allInsets.right,
+                                BaseActivity.IGNORE_MARGIN);
+
+                        binding.viewPagerInboxActivity.setPadding(
+                                allInsets.left,
+                                0,
+                                allInsets.right,
+                                0);
+
+                        setMargins(binding.fabInboxActivity,
+                                BaseActivity.IGNORE_MARGIN,
+                                BaseActivity.IGNORE_MARGIN,
+                                (int) Utils.convertDpToPixel(16, InboxActivity.this) + allInsets.right,
+                                (int) Utils.convertDpToPixel(16, InboxActivity.this) + allInsets.bottom);
+
+                        setMargins(binding.tabLayoutInboxActivity,
+                                allInsets.left,
+                                BaseActivity.IGNORE_MARGIN,
+                                allInsets.right,
+                                BaseActivity.IGNORE_MARGIN);
+
+                        return insets;
+                    }
+                });
+
+                /*adjustToolbar(binding.toolbarInboxActivity);
 
                 int navBarHeight = getNavBarHeight();
                 if (navBarHeight > 0) {
                     CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) binding.fabInboxActivity.getLayoutParams();
                     params.bottomMargin += navBarHeight;
                     binding.fabInboxActivity.setLayoutParams(params);
-                }
+                }*/
             }
         }
 
@@ -140,6 +176,9 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
         } else {
             mNewAccountName = getIntent().getStringExtra(EXTRA_NEW_ACCOUNT_NAME);
         }
+
+        sectionsPagerAdapter = new SectionsPagerAdapter(this);
+
         getCurrentAccountAndFetchMessage(savedInstanceState);
 
         binding.viewPagerInboxActivity.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -208,6 +247,7 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
         binding.getRoot().setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
         applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutInboxActivity,
                 binding.collapsingToolbarLayoutInboxActivity, binding.toolbarInboxActivity);
+        applyAppBarScrollFlagsIfApplicable(binding.collapsingToolbarLayoutInboxActivity);
         applyTabLayoutTheme(binding.tabLayoutInboxActivity);
         applyFABTheme(binding.fabInboxActivity);
     }
@@ -215,7 +255,7 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
     private void getCurrentAccountAndFetchMessage(Bundle savedInstanceState) {
         if (mNewAccountName != null) {
             if (accountName.equals(Account.ANONYMOUS_ACCOUNT) || !accountName.equals(mNewAccountName)) {
-                SwitchAccount.switchAccount(mRedditDataRoomDatabase, mCurrentAccountSharedPreferences,
+                AccountManagement.switchAccount(mRedditDataRoomDatabase, mCurrentAccountSharedPreferences,
                         mExecutor, new Handler(), mNewAccountName, newAccount -> {
                             EventBus.getDefault().post(new SwitchAccountEvent(getClass().getName()));
                             Toast.makeText(this, R.string.account_switched, Toast.LENGTH_SHORT).show();
@@ -223,6 +263,7 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
                             mNewAccountName = null;
                             if (newAccount != null) {
                                 accessToken = newAccount.getAccessToken();
+                                accountName = newAccount.getAccountName();
                             }
 
                             bindView(savedInstanceState);
@@ -236,7 +277,6 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
     }
 
     private void bindView(Bundle savedInstanceState) {
-        sectionsPagerAdapter = new SectionsPagerAdapter(this);
         binding.viewPagerInboxActivity.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
@@ -248,7 +288,6 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
             }
         });
         binding.viewPagerInboxActivity.setAdapter(sectionsPagerAdapter);
-        binding.viewPagerInboxActivity.setOffscreenPageLimit(ViewPager2.OFFSCREEN_PAGE_LIMIT_DEFAULT);
         new TabLayoutMediator(binding.tabLayoutInboxActivity, binding.viewPagerInboxActivity, (tab, position) -> {
             switch (position) {
                 case 0:
@@ -319,7 +358,7 @@ public class InboxActivity extends BaseActivity implements ActivityToolbarInterf
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == RESULT_OK && requestCode == SEARCH_USER_REQUEST_CODE && data != null) {
-            String username = data.getStringExtra(SearchActivity.EXTRA_RETURN_USER_NAME);
+            String username = data.getStringExtra(SelectThingReturnKey.RETURN_EXTRA_SUBREDDIT_OR_USER_NAME);
             Intent intent = new Intent(this, SendPrivateMessageActivity.class);
             intent.putExtra(SendPrivateMessageActivity.EXTRA_RECIPIENT_USERNAME, username);
             startActivity(intent);

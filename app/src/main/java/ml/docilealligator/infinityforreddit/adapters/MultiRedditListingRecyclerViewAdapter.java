@@ -2,6 +2,7 @@ package ml.docilealligator.infinityforreddit.adapters;
 
 import android.os.Handler;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
@@ -19,7 +20,7 @@ import java.util.concurrent.Executor;
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import me.zhanghai.android.fastscroll.PopupTextProvider;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.asynctasks.InsertMultireddit;
@@ -354,7 +355,7 @@ public class MultiRedditListingRecyclerViewAdapter extends RecyclerView.Adapter<
 
     @NonNull
     @Override
-    public String getPopupText(int position) {
+    public String getPopupText(@NonNull View view, int position) {
         switch (getItemViewType(position)) {
             case VIEW_TYPE_MULTI_REDDIT:
                 int offset = (mFavoriteMultiReddits != null && mFavoriteMultiReddits.size() > 0) ?

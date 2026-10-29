@@ -20,6 +20,22 @@ import io.noties.markwon.movement.MovementMethodPlugin;
 import io.noties.markwon.recycler.table.TableEntry;
 import io.noties.markwon.recycler.table.TableEntryPlugin;
 import ml.docilealligator.infinityforreddit.R;
+import ml.docilealligator.infinityforreddit.activities.BaseActivity;
+import ml.docilealligator.infinityforreddit.markdown.emote.EmoteCloseBracketInlineProcessor;
+import ml.docilealligator.infinityforreddit.markdown.emote.EmoteInlineProcessor;
+import ml.docilealligator.infinityforreddit.markdown.emote.EmotePlugin;
+import ml.docilealligator.infinityforreddit.markdown.giphygif.GiphyGifPlugin;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifBlock;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifEntry;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifPlugin;
+import ml.docilealligator.infinityforreddit.markdown.redditheading.RedditHeadingPlugin;
+import ml.docilealligator.infinityforreddit.markdown.spoiler.SpoilerAwareMovementMethod;
+import ml.docilealligator.infinityforreddit.markdown.spoiler.SpoilerParserPlugin;
+import ml.docilealligator.infinityforreddit.markdown.superscript.SuperscriptPlugin;
+import ml.docilealligator.infinityforreddit.markdown.uploadedimage.UploadedImagePlugin;
+import ml.docilealligator.infinityforreddit.markdown.video.VideoBlock;
+import ml.docilealligator.infinityforreddit.markdown.video.VideoEntry;
+import ml.docilealligator.infinityforreddit.markdown.video.VideoPlugin;
 
 public class MarkdownUtils {
     /**
@@ -58,6 +74,39 @@ public class MarkdownUtils {
     }
 
     @NonNull
+    public static Markwon createFullRedditMarkwon(@NonNull Context context,
+                                                  @NonNull MarkwonPlugin miscPlugin,
+                                                  @NonNull EmoteCloseBracketInlineProcessor emoteCloseBracketInlineProcessor,
+                                                  @NonNull EmotePlugin emotePlugin,
+                                                  @NonNull ImageAndGifPlugin imageAndGifPlugin,
+                                                  @NonNull VideoPlugin videoPlugin,
+                                                  int markdownColor,
+                                                  int spoilerBackgroundColor,
+                                                  @Nullable EvenBetterLinkMovementMethod.OnLinkLongClickListener onLinkLongClickListener) {
+        return Markwon.builder(context)
+                .usePlugin(MarkwonInlineParserPlugin.create(plugin -> {
+                    plugin.excludeInlineProcessor(HtmlInlineProcessor.class);
+                    plugin.excludeInlineProcessor(BangInlineProcessor.class);
+                    plugin.excludeInlineProcessor(CloseBracketInlineProcessor.class);
+                    plugin.addInlineProcessor(new EmoteInlineProcessor());
+                    plugin.addInlineProcessor(emoteCloseBracketInlineProcessor);
+                }))
+                .usePlugin(miscPlugin)
+                .usePlugin(SuperscriptPlugin.create())
+                .usePlugin(SpoilerParserPlugin.create(markdownColor, spoilerBackgroundColor))
+                .usePlugin(RedditHeadingPlugin.create())
+                .usePlugin(StrikethroughPlugin.create())
+                .usePlugin(MovementMethodPlugin.create(new SpoilerAwareMovementMethod()
+                        .setOnLinkLongClickListener(onLinkLongClickListener)))
+                .usePlugin(LinkifyPlugin.create(Linkify.WEB_URLS))
+                .usePlugin(imageAndGifPlugin)
+                .usePlugin(videoPlugin)
+                .usePlugin(emotePlugin)
+                .usePlugin(TableEntryPlugin.create(context))
+                .build();
+    }
+
+    @NonNull
     public static Markwon createContentSubmissionRedditMarkwon(@NonNull Context context,
                                                                @NonNull UploadedImagePlugin uploadedImagePlugin) {
         return Markwon.builder(context)
@@ -70,6 +119,26 @@ public class MarkdownUtils {
                 .usePlugin(RedditHeadingPlugin.create())
                 .usePlugin(StrikethroughPlugin.create())
                 .usePlugin(LinkifyPlugin.create(Linkify.WEB_URLS))
+                .usePlugin(uploadedImagePlugin)
+                .usePlugin(TableEntryPlugin.create(context))
+                .build();
+    }
+
+    @NonNull
+    public static Markwon createContentSubmissionRedditMarkwon(@NonNull Context context,
+                                                               @NonNull UploadedImagePlugin uploadedImagePlugin,
+                                                               @NonNull GiphyGifPlugin giphyGifPlugin) {
+        return Markwon.builder(context)
+                .usePlugin(MarkwonInlineParserPlugin.create(plugin -> {
+                    plugin.excludeInlineProcessor(HtmlInlineProcessor.class);
+                    plugin.excludeInlineProcessor(BangInlineProcessor.class);
+                }))
+                .usePlugin(SuperscriptPlugin.create())
+                .usePlugin(SpoilerParserPlugin.create(0, 0))
+                .usePlugin(RedditHeadingPlugin.create())
+                .usePlugin(StrikethroughPlugin.create())
+                .usePlugin(LinkifyPlugin.create(Linkify.WEB_URLS))
+                .usePlugin(giphyGifPlugin)
                 .usePlugin(uploadedImagePlugin)
                 .usePlugin(TableEntryPlugin.create(context))
                 .build();
@@ -138,8 +207,8 @@ public class MarkdownUtils {
      * Creates a CustomMarkwonAdapter configured with support for tables and images.
      */
     @NonNull
-    public static CustomMarkwonAdapter createCustomTablesAndImagesAdapter(ImageAndGifEntry imageAndGifEntry) {
-        return CustomMarkwonAdapter.builder(R.layout.adapter_default_entry, R.id.text)
+    public static CustomMarkwonAdapter createCustomTablesAndImagesAdapter(@NonNull BaseActivity activity, ImageAndGifEntry imageAndGifEntry) {
+        return CustomMarkwonAdapter.builder(activity, R.layout.adapter_default_entry, R.id.text)
                 .include(TableBlock.class, TableEntry.create(builder -> builder
                         .tableLayout(R.layout.adapter_table_block, R.id.table_layout)
                         .textLayoutIsRoot(R.layout.view_table_entry_cell)))
@@ -148,8 +217,21 @@ public class MarkdownUtils {
     }
 
     @NonNull
-    public static CustomMarkwonAdapter createCustomTablesAdapter() {
-        return CustomMarkwonAdapter.builder(R.layout.adapter_default_entry, R.id.text)
+    public static CustomMarkwonAdapter createCustomTablesAndImagesAdapter(@NonNull BaseActivity activity,
+                                                                          ImageAndGifEntry imageAndGifEntry,
+                                                                          VideoEntry videoEntry) {
+        return CustomMarkwonAdapter.builder(activity, R.layout.adapter_default_entry, R.id.text)
+                .include(TableBlock.class, TableEntry.create(builder -> builder
+                        .tableLayout(R.layout.adapter_table_block, R.id.table_layout)
+                        .textLayoutIsRoot(R.layout.view_table_entry_cell)))
+                .include(ImageAndGifBlock.class, imageAndGifEntry)
+                .include(VideoBlock.class, videoEntry)
+                .build();
+    }
+
+    @NonNull
+    public static CustomMarkwonAdapter createCustomTablesAdapter(@NonNull BaseActivity activity) {
+        return CustomMarkwonAdapter.builder(activity, R.layout.adapter_default_entry, R.id.text)
                 .include(TableBlock.class, TableEntry.create(builder -> builder
                         .tableLayout(R.layout.adapter_table_block, R.id.table_layout)
                         .textLayoutIsRoot(R.layout.view_table_entry_cell)))

@@ -1,147 +1,101 @@
 package ml.docilealligator.infinityforreddit.fragments;
 
-import static ml.docilealligator.infinityforreddit.videoautoplay.media.PlaybackInfo.INDEX_UNSET;
-import static ml.docilealligator.infinityforreddit.videoautoplay.media.PlaybackInfo.TIME_UNSET;
+import static ml.docilealligator.infinityforreddit.video.videoautoplay.media.PlaybackInfo.INDEX_UNSET;
+import static ml.docilealligator.infinityforreddit.video.videoautoplay.media.PlaybackInfo.TIME_UNSET;
 
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.graphics.Canvas;
-import android.graphics.Rect;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.os.Handler;
-import android.view.HapticFeedbackConstants;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Toast;
 
-import androidx.annotation.DimenRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.res.ResourcesCompat;
-import androidx.fragment.app.Fragment;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.paging.ItemSnapshotList;
+import androidx.paging.CombinedLoadStates;
 import androidx.paging.LoadState;
-import androidx.recyclerview.widget.ItemTouchHelper;
-import androidx.recyclerview.widget.LinearSmoothScroller;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.transition.AutoTransition;
 import androidx.transition.TransitionManager;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.RequestManager;
-
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 
-import ml.docilealligator.infinityforreddit.ActivityToolbarInterface;
-import ml.docilealligator.infinityforreddit.FetchPostFilterReadPostsAndConcatenatedSubredditNames;
-import ml.docilealligator.infinityforreddit.FragmentCommunicator;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
+import ml.docilealligator.infinityforreddit.FetchPostFilterAndConcatenatedSubredditNames;
 import ml.docilealligator.infinityforreddit.Infinity;
+import ml.docilealligator.infinityforreddit.moderation.PostModerationActionHandler;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
-import ml.docilealligator.infinityforreddit.SortType;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.AccountPostsActivity;
 import ml.docilealligator.infinityforreddit.activities.AccountSavedThingActivity;
-import ml.docilealligator.infinityforreddit.activities.BaseActivity;
+import ml.docilealligator.infinityforreddit.activities.ActivityToolbarInterface;
 import ml.docilealligator.infinityforreddit.activities.CustomizePostFilterActivity;
 import ml.docilealligator.infinityforreddit.activities.FilteredPostsActivity;
 import ml.docilealligator.infinityforreddit.activities.ViewSubredditDetailActivity;
 import ml.docilealligator.infinityforreddit.adapters.Paging3LoadingStateAdapter;
 import ml.docilealligator.infinityforreddit.adapters.PostRecyclerViewAdapter;
 import ml.docilealligator.infinityforreddit.apis.StreamableAPI;
-import ml.docilealligator.infinityforreddit.asynctasks.LoadSubredditIcon;
-import ml.docilealligator.infinityforreddit.asynctasks.LoadUserData;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.FABMoreOptionsBottomSheetFragment;
-import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
+import ml.docilealligator.infinityforreddit.bottomsheetfragments.FlairBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.LinearLayoutManagerBugFixed;
 import ml.docilealligator.infinityforreddit.databinding.FragmentPostBinding;
-import ml.docilealligator.infinityforreddit.events.ChangeAutoplayNsfwVideosEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeCompactLayoutToolbarHiddenByDefaultEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeDataSavingModeEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeDefaultLinkPostLayoutEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeDefaultPostLayoutEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeDisableImagePreviewEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeEasierToWatchInFullScreenEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeEnableSwipeActionSwitchEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeFixedHeightPreviewInCardEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeHidePostFlairEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeHidePostTypeEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeHideSubredditAndUserPrefixEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeHideTextPostContent;
-import ml.docilealligator.infinityforreddit.events.ChangeHideTheNumberOfCommentsEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeHideTheNumberOfVotesEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeLongPressToHideToolbarInCompactLayoutEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeMuteAutoplayingVideosEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeMuteNSFWVideoEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeNSFWBlurEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeNetworkStatusEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeOnlyDisablePreviewInVideoAndGifPostsEvent;
-import ml.docilealligator.infinityforreddit.events.ChangePostFeedMaxResolutionEvent;
-import ml.docilealligator.infinityforreddit.events.ChangePostLayoutEvent;
-import ml.docilealligator.infinityforreddit.events.ChangePullToRefreshEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeRememberMutingOptionInPostFeedEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeSavePostFeedScrolledPositionEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeShowAbsoluteNumberOfVotesEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeShowElapsedTimeEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeSpoilerBlurEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeStartAutoplayVisibleAreaOffsetEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeSwipeActionEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeSwipeActionThresholdEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeTimeFormatEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeVibrateWhenActionTriggeredEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeVideoAutoplayEvent;
-import ml.docilealligator.infinityforreddit.events.ChangeVoteButtonsPositionEvent;
+import ml.docilealligator.infinityforreddit.events.FlairSelectedEvent;
 import ml.docilealligator.infinityforreddit.events.NeedForPostListFromPostFragmentEvent;
+import ml.docilealligator.infinityforreddit.events.PostUpdateEventToPostDetailFragment;
 import ml.docilealligator.infinityforreddit.events.PostUpdateEventToPostList;
 import ml.docilealligator.infinityforreddit.events.ProvidePostListToViewPostDetailActivityEvent;
-import ml.docilealligator.infinityforreddit.events.ShowDividerInCompactLayoutPreferenceEvent;
-import ml.docilealligator.infinityforreddit.events.ShowThumbnailOnTheRightInCompactLayoutEvent;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.post.PostPagingSource;
+import ml.docilealligator.infinityforreddit.post.PostType;
 import ml.docilealligator.infinityforreddit.post.PostViewModel;
 import ml.docilealligator.infinityforreddit.postfilter.PostFilter;
 import ml.docilealligator.infinityforreddit.postfilter.PostFilterUsage;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostType;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostsList;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostsListInterface;
+import ml.docilealligator.infinityforreddit.thing.SortType;
+import ml.docilealligator.infinityforreddit.user.UserProfileImagesBatchLoader;
+import ml.docilealligator.infinityforreddit.utils.SharedPreferencesLiveDataKt;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
-import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator;
-import ml.docilealligator.infinityforreddit.videoautoplay.media.PlaybackInfo;
-import ml.docilealligator.infinityforreddit.videoautoplay.media.VolumeInfo;
+import ml.docilealligator.infinityforreddit.video.videoautoplay.ExoCreator;
+import ml.docilealligator.infinityforreddit.video.videoautoplay.media.PlaybackInfo;
+import ml.docilealligator.infinityforreddit.video.videoautoplay.media.VolumeInfo;
 import retrofit2.Retrofit;
 
 
 /**
- * A simple {@link Fragment} subclass.
+ * A simple {@link PostFragmentBase} subclass.
  */
-public class PostFragment extends Fragment implements FragmentCommunicator {
+public class PostFragment extends PostFragmentBase implements FragmentCommunicator, PostModerationActionHandler {
 
     public static final String EXTRA_NAME = "EN";
     public static final String EXTRA_USER_NAME = "EUN";
@@ -154,28 +108,16 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
     private static final String IS_IN_LAZY_MODE_STATE = "IILMS";
     private static final String RECYCLER_VIEW_POSITION_STATE = "RVPS";
-    private static final String READ_POST_LIST_STATE = "RPLS";
     private static final String POST_FILTER_STATE = "PFS";
     private static final String CONCATENATED_SUBREDDIT_NAMES_STATE = "CSNS";
     private static final String POST_FRAGMENT_ID_STATE = "PFIS";
 
     PostViewModel mPostViewModel;
     @Inject
-    @Named("no_oauth")
-    Retrofit mRetrofit;
-    @Inject
-    @Named("oauth")
-    Retrofit mOauthRetrofit;
-    @Inject
     @Named("redgifs")
     Retrofit mRedgifsRetrofit;
     @Inject
     Provider<StreamableAPI> mStreamableApiProvider;
-    @Inject
-    RedditDataRoomDatabase mRedditDataRoomDatabase;
-    @Inject
-    @Named("default")
-    SharedPreferences mSharedPreferences;
     @Inject
     @Named("current_account")
     SharedPreferences mCurrentAccountSharedPreferences;
@@ -195,32 +137,13 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     @Named("post_feed_scrolled_position_cache")
     SharedPreferences mPostFeedScrolledPositionSharedPreferences;
     @Inject
-    CustomThemeWrapper mCustomThemeWrapper;
-    @Inject
     ExoCreator mExoCreator;
     @Inject
-    Executor mExecutor;
-    private RequestManager mGlide;
-    private BaseActivity activity;
-    private LinearLayoutManagerBugFixed mLinearLayoutManager;
-    private StaggeredGridLayoutManager mStaggeredGridLayoutManager;
-    private MenuItem lazyModeItem;
-    private long postFragmentId;
+    UserProfileImagesBatchLoader loader;
+    @PostType
     private int postType;
-    private boolean isInLazyMode = false;
-    private boolean isLazyModePaused = false;
-    private boolean hasPost = false;
     private boolean savePostFeedScrolledPosition;
-    private boolean rememberMutingOptionInPostFeed;
-    private boolean swipeActionEnabled;
-    private Boolean masterMutingOption;
     private PostRecyclerViewAdapter mAdapter;
-    private RecyclerView.SmoothScroller smoothScroller;
-    private Window window;
-    private Handler lazyModeHandler;
-    private LazyModeRunnable lazyModeRunnable;
-    private CountDownTimer resumeLazyModeCountDownTimer;
-    private float lazyModeInterval;
     private String subredditName;
     private String username;
     private String query;
@@ -229,20 +152,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     private String multiRedditPath;
     private String concatenatedSubredditNames;
     private int maxPosition = -1;
-    private int postLayout;
     private SortType sortType;
     private PostFilter postFilter;
-    private ColorDrawable backgroundSwipeRight;
-    private ColorDrawable backgroundSwipeLeft;
-    private Drawable drawableSwipeRight;
-    private Drawable drawableSwipeLeft;
-    private int swipeLeftAction;
-    private int swipeRightAction;
-    private boolean vibrateWhenActionTriggered;
-    private float swipeActionThreshold;
-    private ItemTouchHelper touchHelper;
-    private ArrayList<String> readPosts;
-    private final Map<String, String> subredditOrUserIcons = new HashMap<>();
+    private ReadPostsListInterface readPostsList;
     private FragmentPostBinding binding;
 
     public PostFragment() {
@@ -263,7 +175,8 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         }
     }
 
-    private boolean scrollPostsByCount(int count) {
+    @Override
+    protected boolean scrollPostsByCount(int count) {
         if (mLinearLayoutManager != null) {
             int pos = mLinearLayoutManager.findFirstVisibleItemPosition();
             int targetPosition = pos + count;
@@ -275,135 +188,65 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     }
 
     @Override
-    public boolean handleKeyDown(int keyCode) {
-        boolean volumeKeysNavigatePosts = mSharedPreferences.getBoolean(SharedPreferencesUtils.VOLUME_KEYS_NAVIGATE_POSTS, false);
-        if (volumeKeysNavigatePosts) {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_VOLUME_UP:
-                    return scrollPostsByCount(-1);
-                case KeyEvent.KEYCODE_VOLUME_DOWN:
-                    return scrollPostsByCount(1);
-            }
-        }
-        return false;
-    }
-
-    @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         binding = FragmentPostBinding.inflate(inflater, container, false);
 
-        ((Infinity) activity.getApplication()).getAppComponent().inject(this);
+        ((Infinity) mActivity.getApplication()).getAppComponent().inject(this);
+
+        super.onCreateView(inflater, container, savedInstanceState);
 
         setHasOptionsMenu(true);
 
-        EventBus.getDefault().register(this);
-
         applyTheme();
+
+        if (mActivity.isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, false, mActivity.isForcedImmersiveInterface());
+                    getPostRecyclerView().setPadding(
+                            0, 0, 0, allInsets.bottom
+                    );
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
+        }
 
         binding.recyclerViewPostFragment.addOnWindowFocusChangedListener(this::onWindowFocusChanged);
 
-        lazyModeHandler = new Handler();
-
-        lazyModeInterval = Float.parseFloat(mSharedPreferences.getString(SharedPreferencesUtils.LAZY_MODE_INTERVAL_KEY, "2.5"));
-
-        smoothScroller = new LinearSmoothScroller(activity) {
-            @Override
-            protected int getVerticalSnapPreference() {
-                return LinearSmoothScroller.SNAP_TO_START;
-            }
-        };
-
-        window = activity.getWindow();
-
         Resources resources = getResources();
-
-        if ((activity != null && activity.isImmersiveInterface())) {
-            binding.recyclerViewPostFragment.setPadding(0, 0, 0, ((BaseActivity) activity).getNavBarHeight());
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                && mSharedPreferences.getBoolean(SharedPreferencesUtils.IMMERSIVE_INTERFACE_KEY, true)) {
-            int navBarResourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
-            if (navBarResourceId > 0) {
-                binding.recyclerViewPostFragment.setPadding(0, 0, 0, resources.getDimensionPixelSize(navBarResourceId));
-            }
-        }
-
-        mGlide = Glide.with(activity);
-
-        lazyModeRunnable = new LazyModeRunnable() {
-
-            @Override
-            public void run() {
-                if (isInLazyMode && !isLazyModePaused && mAdapter != null) {
-                    int nPosts = mAdapter.getItemCount();
-                    if (getCurrentPosition() == -1) {
-                        if (mLinearLayoutManager != null) {
-                            setCurrentPosition(mLinearLayoutManager.findFirstVisibleItemPosition());
-                        } else {
-                            int[] into = new int[2];
-                            setCurrentPosition(mStaggeredGridLayoutManager.findFirstVisibleItemPositions(into)[1]);
-                        }
-                    }
-
-                    if (getCurrentPosition() != RecyclerView.NO_POSITION && nPosts > getCurrentPosition()) {
-                        incrementCurrentPosition();
-                        smoothScroller.setTargetPosition(getCurrentPosition());
-                        if (mLinearLayoutManager != null) {
-                            mLinearLayoutManager.startSmoothScroll(smoothScroller);
-                        } else {
-                            mStaggeredGridLayoutManager.startSmoothScroll(smoothScroller);
-                        }
-                    }
-                }
-                lazyModeHandler.postDelayed(this, (long) (lazyModeInterval * 1000));
-            }
-        };
-
-        resumeLazyModeCountDownTimer = new CountDownTimer((long) (lazyModeInterval * 1000), (long) (lazyModeInterval * 1000)) {
-            @Override
-            public void onTick(long l) {
-
-            }
-
-            @Override
-            public void onFinish() {
-                resumeLazyMode(true);
-            }
-        };
 
         binding.swipeRefreshLayoutPostFragment.setEnabled(mSharedPreferences.getBoolean(SharedPreferencesUtils.PULL_TO_REFRESH, true));
         binding.swipeRefreshLayoutPostFragment.setOnRefreshListener(this::refresh);
 
-        int recyclerViewPosition = 0;
+        int recyclerViewPosition;
         if (savedInstanceState != null) {
             recyclerViewPosition = savedInstanceState.getInt(RECYCLER_VIEW_POSITION_STATE);
 
             isInLazyMode = savedInstanceState.getBoolean(IS_IN_LAZY_MODE_STATE);
-            readPosts = savedInstanceState.getStringArrayList(READ_POST_LIST_STATE);
             postFilter = savedInstanceState.getParcelable(POST_FILTER_STATE);
             concatenatedSubredditNames = savedInstanceState.getString(CONCATENATED_SUBREDDIT_NAMES_STATE);
             postFragmentId = savedInstanceState.getLong(POST_FRAGMENT_ID_STATE);
         } else {
+            recyclerViewPosition = 0;
             postFilter = getArguments().getParcelable(EXTRA_FILTER);
             postFragmentId = System.currentTimeMillis() + new Random().nextInt(1000);
         }
 
-        binding.recyclerViewPostFragment.setOnTouchListener((view, motionEvent) -> {
-            if (isInLazyMode) {
-                pauseLazyMode(true);
-            }
-            return false;
-        });
+        readPostsList = new ReadPostsList(mRedditDataRoomDatabase.readPostDao(), mActivity.accountName,
+                getArguments().getBoolean(EXTRA_DISABLE_READ_POSTS, false));
 
-        if (activity instanceof RecyclerViewContentScrollingInterface) {
+        if (mActivity instanceof RecyclerViewContentScrollingInterface) {
             binding.recyclerViewPostFragment.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                     if (dy > 0) {
-                        ((RecyclerViewContentScrollingInterface) activity).contentScrollDown();
+                        ((RecyclerViewContentScrollingInterface) mActivity).contentScrollDown();
                     } else if (dy < 0) {
-                        ((RecyclerViewContentScrollingInterface) activity).contentScrollUp();
+                        ((RecyclerViewContentScrollingInterface) mActivity).contentScrollUp();
                     }
                 }
             });
@@ -413,13 +256,12 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
         int defaultPostLayout = Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.DEFAULT_POST_LAYOUT_KEY, "0"));
         savePostFeedScrolledPosition = mSharedPreferences.getBoolean(SharedPreferencesUtils.SAVE_FRONT_PAGE_SCROLLED_POSITION, false);
-        rememberMutingOptionInPostFeed = mSharedPreferences.getBoolean(SharedPreferencesUtils.REMEMBER_MUTING_OPTION_IN_POST_FEED, false);
-        Locale locale = getResources().getConfiguration().locale;
+        Locale locale = resources.getConfiguration().locale;
 
         int usage;
         String nameOfUsage;
 
-        if (postType == PostPagingSource.TYPE_SEARCH) {
+        if (postType == PostType.SEARCH) {
             subredditName = getArguments().getString(EXTRA_NAME);
             query = getArguments().getString(EXTRA_QUERY);
             trendingSource = getArguments().getString(EXTRA_TRENDING_SOURCE);
@@ -435,14 +277,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             sortType = new SortType(SortType.Type.valueOf(sort), SortType.Time.valueOf(sortTime));
             postLayout = mPostLayoutSharedPreferences.getInt(SharedPreferencesUtils.POST_LAYOUT_SEARCH_POST, defaultPostLayout);
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_TRENDING_SOURCE, trendingSource);
@@ -453,7 +295,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_TRENDING_SOURCE, trendingSource);
@@ -464,7 +306,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_TRENDING_SOURCE, trendingSource);
@@ -485,7 +327,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     TransitionManager.beginDelayedTransition(binding.recyclerViewPostFragment, new AutoTransition());
                 }
             });
-        } else if (postType == PostPagingSource.TYPE_SUBREDDIT) {
+        } else if (postType == PostType.SUBREDDIT) {
             subredditName = getArguments().getString(EXTRA_NAME);
             if (savedInstanceState == null) {
                 postFragmentId += subredditName.hashCode();
@@ -512,14 +354,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                 sortType = new SortType(SortType.Type.valueOf(sort));
             }
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, displaySubredditName,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, displaySubredditName,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, filter);
@@ -528,7 +370,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_CONTAIN_FLAIR, flair);
@@ -537,7 +379,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, Post.NSFW_TYPE);
@@ -556,10 +398,11 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     TransitionManager.beginDelayedTransition(binding.recyclerViewPostFragment, new AutoTransition());
                 }
             });
-        } else if (postType == PostPagingSource.TYPE_MULTI_REDDIT) {
+        } else if (postType == PostType.MULTIREDDIT) {
             multiRedditPath = getArguments().getString(EXTRA_NAME);
+            query = getArguments().getString(EXTRA_QUERY);
             if (savedInstanceState == null) {
-                postFragmentId += multiRedditPath.hashCode();
+                postFragmentId += multiRedditPath.hashCode() + (query == null ? 0 : query.hashCode());
             }
 
             usage = PostFilterUsage.MULTIREDDIT_TYPE;
@@ -583,15 +426,16 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                 sortType = new SortType(SortType.Type.valueOf(sort));
             }
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
+                    intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, filter);
                     startActivity(intent);
@@ -599,8 +443,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
+                    intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_CONTAIN_FLAIR, flair);
                     startActivity(intent);
@@ -608,8 +453,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
+                    intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, Post.NSFW_TYPE);
                     startActivity(intent);
@@ -627,7 +473,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     TransitionManager.beginDelayedTransition(binding.recyclerViewPostFragment, new AutoTransition());
                 }
             });
-        } else if (postType == PostPagingSource.TYPE_USER) {
+        } else if (postType == PostType.USER) {
             username = getArguments().getString(EXTRA_USER_NAME);
             where = getArguments().getString(EXTRA_USER_WHERE);
             if (savedInstanceState == null) {
@@ -648,14 +494,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             }
             postLayout = mPostLayoutSharedPreferences.getInt(SharedPreferencesUtils.POST_LAYOUT_USER_POST_BASE + username, defaultPostLayout);
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, username);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_USER_WHERE, where);
@@ -665,7 +511,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, username);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_USER_WHERE, where);
@@ -675,7 +521,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, username);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_USER_WHERE, where);
@@ -695,7 +541,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     TransitionManager.beginDelayedTransition(binding.recyclerViewPostFragment, new AutoTransition());
                 }
             });
-        } else if (postType == PostPagingSource.TYPE_ANONYMOUS_FRONT_PAGE) {
+        } else if (postType == PostType.ANONYMOUS_FRONT_PAGE) {
             usage = PostFilterUsage.HOME_TYPE;
             nameOfUsage = PostFilterUsage.NO_USAGE;
 
@@ -709,14 +555,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
             postLayout = mPostLayoutSharedPreferences.getInt(SharedPreferencesUtils.POST_LAYOUT_FRONT_PAGE_POST, defaultPostLayout);
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, filter);
                     startActivity(intent);
@@ -724,7 +570,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_CONTAIN_FLAIR, flair);
                     startActivity(intent);
@@ -732,7 +578,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, Post.NSFW_TYPE);
                     startActivity(intent);
@@ -750,7 +596,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     TransitionManager.beginDelayedTransition(binding.recyclerViewPostFragment, new AutoTransition());
                 }
             });
-        } else if (postType == PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT) {
+        } else if (postType == PostType.ANONYMOUS_MULTIREDDIT) {
             multiRedditPath = getArguments().getString(EXTRA_NAME);
             if (savedInstanceState == null) {
                 postFragmentId += multiRedditPath.hashCode();
@@ -769,14 +615,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
             postLayout = mPostLayoutSharedPreferences.getInt(SharedPreferencesUtils.POST_LAYOUT_MULTI_REDDIT_POST_BASE + multiRedditPath, defaultPostLayout);
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, filter);
@@ -785,7 +631,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_CONTAIN_FLAIR, flair);
@@ -794,7 +640,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, Post.NSFW_TYPE);
@@ -826,14 +672,14 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             }
             postLayout = mPostLayoutSharedPreferences.getInt(SharedPreferencesUtils.POST_LAYOUT_FRONT_PAGE_POST, defaultPostLayout);
 
-            mAdapter = new PostRecyclerViewAdapter(activity, this, mExecutor, mOauthRetrofit,
-                    mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
-                    activity.accessToken, activity.accountName, postType, postLayout, true,
+            mAdapter = new PostRecyclerViewAdapter(mActivity, this, mRedditDataRoomDatabase, mExecutor,
+                    mOauthRetrofit, mRedgifsRetrofit, mStreamableApiProvider, mCustomThemeWrapper, locale,
+                    mActivity.accessToken, mActivity.accountName, postType, postLayout, true,
                     mSharedPreferences, mCurrentAccountSharedPreferences, mNsfwAndSpoilerSharedPreferences, mPostHistorySharedPreferences,
                     mExoCreator, new PostRecyclerViewAdapter.Callback() {
                 @Override
                 public void typeChipClicked(int filter) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, filter);
                     startActivity(intent);
@@ -841,7 +687,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void flairChipClicked(String flair) {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_CONTAIN_FLAIR, flair);
                     startActivity(intent);
@@ -849,7 +695,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
                 @Override
                 public void nsfwChipClicked() {
-                    Intent intent = new Intent(activity, FilteredPostsActivity.class);
+                    Intent intent = new Intent(mActivity, FilteredPostsActivity.class);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
                     intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE_FILTER, Post.NSFW_TYPE);
                     startActivity(intent);
@@ -871,75 +717,55 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
         int nColumns = getNColumns(resources);
         if (nColumns == 1) {
-            mLinearLayoutManager = new LinearLayoutManagerBugFixed(activity);
+            mLinearLayoutManager = new LinearLayoutManagerBugFixed(mActivity);
             binding.recyclerViewPostFragment.setLayoutManager(mLinearLayoutManager);
         } else {
             mStaggeredGridLayoutManager = new StaggeredGridLayoutManager(nColumns, StaggeredGridLayoutManager.VERTICAL);
             binding.recyclerViewPostFragment.setLayoutManager(mStaggeredGridLayoutManager);
             StaggeredGridLayoutManagerItemOffsetDecoration itemDecoration =
-                    new StaggeredGridLayoutManagerItemOffsetDecoration(activity, R.dimen.staggeredLayoutManagerItemOffset, nColumns);
+                    new StaggeredGridLayoutManagerItemOffsetDecoration(mActivity, R.dimen.staggeredLayoutManagerItemOffset, nColumns);
             binding.recyclerViewPostFragment.addItemDecoration(itemDecoration);
         }
 
         if (recyclerViewPosition > 0) {
-            binding.recyclerViewPostFragment.scrollToPosition(recyclerViewPosition);
-        }
-
-        if (activity instanceof ActivityToolbarInterface) {
-            ((ActivityToolbarInterface) activity).displaySortType();
-        }
-
-        if (!activity.accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
-            if (mPostHistorySharedPreferences.getBoolean(activity.accountName + SharedPreferencesUtils.MARK_POSTS_AS_READ_BASE, false) && readPosts == null) {
-                if (getArguments().getBoolean(EXTRA_DISABLE_READ_POSTS, false)) {
-                    if (postFilter == null) {
-                        FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndReadPosts(mRedditDataRoomDatabase, mExecutor,
-                                new Handler(), activity.accountName, usage, nameOfUsage, (postFilter, readPostList) -> {
-                                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
-                                        this.postFilter = postFilter;
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(activity.accountName + SharedPreferencesUtils.NSFW_BASE, false);
-                                        initializeAndBindPostViewModel();
-                                    }
-                                });
-                    } else {
-                        initializeAndBindPostViewModel();
+            mAdapter.addLoadStateListener(new Function1<>() {
+                @Override
+                public Unit invoke(CombinedLoadStates combinedLoadStates) {
+                    if (combinedLoadStates.getRefresh() instanceof LoadState.NotLoading && mAdapter.getItemCount() > 0) {
+                        binding.recyclerViewPostFragment.scrollToPosition(recyclerViewPosition);
+                        mAdapter.removeLoadStateListener(this);
                     }
-                } else {
-                    FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndReadPosts(mRedditDataRoomDatabase, mExecutor,
-                            new Handler(), activity.accountName, usage, nameOfUsage, (postFilter, readPostList) -> {
-                                if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
-                                    if (this.postFilter == null) {
-                                        this.postFilter = postFilter;
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(activity.accountName + SharedPreferencesUtils.NSFW_BASE, false);
-                                    }
-                                    this.readPosts = readPostList;
-                                    initializeAndBindPostViewModel();
-                                }
-                            });
+                    return Unit.INSTANCE;
                 }
+            });
+        }
+
+        if (mActivity instanceof ActivityToolbarInterface) {
+            ((ActivityToolbarInterface) mActivity).displaySortType();
+        }
+
+        if (!mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
+            if (postFilter == null) {
+                FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilter(mRedditDataRoomDatabase, mExecutor,
+                        new Handler(), usage, nameOfUsage, (postFilter) -> {
+                            if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
+                                this.postFilter = postFilter;
+                                this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(mActivity.accountName + SharedPreferencesUtils.NSFW_BASE, false);
+                                initializeAndBindPostViewModel();
+                            }
+                        });
             } else {
-                if (postFilter == null) {
-                    FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndReadPosts(mRedditDataRoomDatabase, mExecutor,
-                            new Handler(), activity.accountName, usage, nameOfUsage, (postFilter, readPostList) -> {
-                                if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
-                                    this.postFilter = postFilter;
-                                    postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(activity.accountName + SharedPreferencesUtils.NSFW_BASE, false);
-                                    initializeAndBindPostViewModel();
-                                }
-                            });
-                } else {
-                    initializeAndBindPostViewModel();
-                }
+                initializeAndBindPostViewModel();
             }
         } else {
             if (postFilter == null) {
-                if (postType == PostPagingSource.TYPE_ANONYMOUS_FRONT_PAGE) {
+                if (postType == PostType.ANONYMOUS_FRONT_PAGE) {
                     if (concatenatedSubredditNames == null) {
-                        FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), usage, nameOfUsage,
+                        FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), usage, nameOfUsage,
                                 (postFilter, concatenatedSubredditNames) -> {
-                                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
+                                    if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
                                         this.postFilter = postFilter;
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
+                                        this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
                                         this.concatenatedSubredditNames = concatenatedSubredditNames;
                                         if (concatenatedSubredditNames == null) {
                                             showErrorView(R.string.anonymous_front_page_no_subscriptions);
@@ -951,13 +777,13 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     } else {
                         initializeAndBindPostViewModelForAnonymous(concatenatedSubredditNames);
                     }
-                } else if (postType == PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT) {
+                } else if (postType == PostType.ANONYMOUS_MULTIREDDIT) {
                     if (concatenatedSubredditNames == null) {
-                        FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), multiRedditPath, usage, nameOfUsage,
+                        FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), multiRedditPath, usage, nameOfUsage,
                                 (postFilter, concatenatedSubredditNames) -> {
-                                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
+                                    if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
                                         this.postFilter = postFilter;
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
+                                        this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
                                         this.concatenatedSubredditNames = concatenatedSubredditNames;
                                         if (concatenatedSubredditNames == null) {
                                             showErrorView(R.string.anonymous_multireddit_no_subreddit);
@@ -970,22 +796,22 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                         initializeAndBindPostViewModelForAnonymous(concatenatedSubredditNames);
                     }
                 } else {
-                    FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndReadPosts(mRedditDataRoomDatabase, mExecutor,
-                            new Handler(), activity.accountName, usage, nameOfUsage, (postFilter, readPostList) -> {
-                                if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
+                    FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilter(mRedditDataRoomDatabase, mExecutor,
+                            new Handler(), usage, nameOfUsage, (postFilter) -> {
+                                if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
                                     this.postFilter = postFilter;
-                                    postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
+                                    this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
                                     initializeAndBindPostViewModelForAnonymous(null);
                                 }
                             });
                 }
             } else {
-                if (postType == PostPagingSource.TYPE_ANONYMOUS_FRONT_PAGE) {
+                if (postType == PostType.ANONYMOUS_FRONT_PAGE) {
                     if (concatenatedSubredditNames == null) {
-                        FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), usage, nameOfUsage,
+                        FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), usage, nameOfUsage,
                                 (postFilter, concatenatedSubredditNames) -> {
-                                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
+                                    if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
+                                        this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
                                         this.concatenatedSubredditNames = concatenatedSubredditNames;
                                         if (concatenatedSubredditNames == null) {
                                             showErrorView(R.string.anonymous_front_page_no_subscriptions);
@@ -997,12 +823,12 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                     } else {
                         initializeAndBindPostViewModelForAnonymous(concatenatedSubredditNames);
                     }
-                } else if (postType == PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT) {
+                } else if (postType == PostType.ANONYMOUS_MULTIREDDIT) {
                     if (concatenatedSubredditNames == null) {
-                        FetchPostFilterReadPostsAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), multiRedditPath, usage, nameOfUsage,
+                        FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilterAndConcatenatedSubredditNames(mRedditDataRoomDatabase, mExecutor, new Handler(), multiRedditPath, usage, nameOfUsage,
                                 (postFilter, concatenatedSubredditNames) -> {
-                                    if (activity != null && !activity.isFinishing() && !activity.isDestroyed() && !isDetached()) {
-                                        postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
+                                    if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed() && !isDetached()) {
+                                        this.postFilter.allowNSFW = !mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_NSFW_FOREVER, false) && mNsfwAndSpoilerSharedPreferences.getBoolean(SharedPreferencesUtils.NSFW_BASE, false);
                                         this.concatenatedSubredditNames = concatenatedSubredditNames;
                                         if (concatenatedSubredditNames == null) {
                                             showErrorView(R.string.anonymous_multireddit_no_subreddit);
@@ -1020,114 +846,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             }
         }
 
-        vibrateWhenActionTriggered = mSharedPreferences.getBoolean(SharedPreferencesUtils.VIBRATE_WHEN_ACTION_TRIGGERED, true);
-        swipeActionThreshold = Float.parseFloat(mSharedPreferences.getString(SharedPreferencesUtils.SWIPE_ACTION_THRESHOLD, "0.3"));
-        swipeRightAction = Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.SWIPE_RIGHT_ACTION, "1"));
-        swipeLeftAction = Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.SWIPE_LEFT_ACTION, "0"));
-        initializeSwipeActionDrawable();
-
-        touchHelper = new ItemTouchHelper(new ItemTouchHelper.Callback() {
-            boolean exceedThreshold = false;
-
-            @Override
-            public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-                if (!(viewHolder instanceof PostRecyclerViewAdapter.PostBaseViewHolder) &&
-                        !(viewHolder instanceof PostRecyclerViewAdapter.PostCompactBaseViewHolder)) {
-                    return makeMovementFlags(0, 0);
-                } else if (viewHolder instanceof PostRecyclerViewAdapter.PostBaseGalleryTypeViewHolder) {
-                    if (((PostRecyclerViewAdapter.PostBaseGalleryTypeViewHolder) viewHolder).isSwipeLocked()) {
-                        return makeMovementFlags(0, 0);
-                    }
-                }
-                int swipeFlags = ItemTouchHelper.START | ItemTouchHelper.END;
-                return makeMovementFlags(0, swipeFlags);
-            }
-
-            @Override
-            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                return false;
-            }
-
-            @Override
-            public boolean isItemViewSwipeEnabled() {
-                return true;
-            }
-
-            @Override
-            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                if (touchHelper != null) {
-                    exceedThreshold = false;
-                    touchHelper.attachToRecyclerView(null);
-                    touchHelper.attachToRecyclerView(binding.recyclerViewPostFragment);
-                }
-            }
-
-            @Override
-            public void onChildDraw(@NonNull Canvas c, @NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, float dX, float dY, int actionState, boolean isCurrentlyActive) {
-                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
-
-                if (isCurrentlyActive) {
-                    View itemView = viewHolder.itemView;
-                    int horizontalOffset = (int) Utils.convertDpToPixel(16, activity);
-                    if (dX > 0) {
-                        if (dX > (itemView.getRight() - itemView.getLeft()) * swipeActionThreshold) {
-                            if (!exceedThreshold) {
-                                exceedThreshold = true;
-                                if (vibrateWhenActionTriggered) {
-                                    viewHolder.itemView.setHapticFeedbackEnabled(true);
-                                    viewHolder.itemView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-                                }
-                            }
-                            backgroundSwipeRight.setBounds(0, itemView.getTop(), itemView.getRight(), itemView.getBottom());
-                        } else {
-                            exceedThreshold = false;
-                            backgroundSwipeRight.setBounds(0, 0, 0, 0);
-                        }
-
-                        drawableSwipeRight.setBounds(itemView.getLeft() + ((int) dX) - horizontalOffset - drawableSwipeRight.getIntrinsicWidth(),
-                                (itemView.getBottom() + itemView.getTop() - drawableSwipeRight.getIntrinsicHeight()) / 2,
-                                itemView.getLeft() + ((int) dX) - horizontalOffset,
-                                (itemView.getBottom() + itemView.getTop() + drawableSwipeRight.getIntrinsicHeight()) / 2);
-                        backgroundSwipeRight.draw(c);
-                        drawableSwipeRight.draw(c);
-                    } else if (dX < 0) {
-                        if (-dX > (itemView.getRight() - itemView.getLeft()) * swipeActionThreshold) {
-                            if (!exceedThreshold) {
-                                exceedThreshold = true;
-                                if (vibrateWhenActionTriggered) {
-                                    viewHolder.itemView.setHapticFeedbackEnabled(true);
-                                    viewHolder.itemView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-                                }
-                            }
-                            backgroundSwipeLeft.setBounds(0, itemView.getTop(), itemView.getRight(), itemView.getBottom());
-                        } else {
-                            exceedThreshold = false;
-                            backgroundSwipeLeft.setBounds(0, 0, 0, 0);
-                        }
-                        drawableSwipeLeft.setBounds(itemView.getRight() + ((int) dX) + horizontalOffset,
-                                (itemView.getBottom() + itemView.getTop() - drawableSwipeLeft.getIntrinsicHeight()) / 2,
-                                itemView.getRight() + ((int) dX) + horizontalOffset + drawableSwipeLeft.getIntrinsicWidth(),
-                                (itemView.getBottom() + itemView.getTop() + drawableSwipeLeft.getIntrinsicHeight()) / 2);
-                        backgroundSwipeLeft.draw(c);
-                        drawableSwipeLeft.draw(c);
-                    }
-                } else {
-                    if (exceedThreshold) {
-                        mAdapter.onItemSwipe(viewHolder, dX > 0 ? ItemTouchHelper.END : ItemTouchHelper.START, swipeLeftAction, swipeRightAction);
-                        exceedThreshold = false;
-                    }
-                }
-            }
-
-            @Override
-            public float getSwipeThreshold(@NonNull RecyclerView.ViewHolder viewHolder) {
-                return 1;
-            }
-        });
-
         if (nColumns == 1 && mSharedPreferences.getBoolean(SharedPreferencesUtils.ENABLE_SWIPE_ACTION, false)) {
             swipeActionEnabled = true;
-            touchHelper.attachToRecyclerView(binding.recyclerViewPostFragment);
+            touchHelper.attachToRecyclerView(binding.recyclerViewPostFragment, 1);
         }
         binding.recyclerViewPostFragment.setAdapter(mAdapter);
         binding.recyclerViewPostFragment.setCacheManager(mAdapter);
@@ -1136,106 +857,112 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             return new PlaybackInfo(INDEX_UNSET, TIME_UNSET, volumeInfo);
         });
 
+        SharedPreferencesLiveDataKt.stringLiveData(mSharedPreferences, SharedPreferencesUtils.SIMULTANEOUS_AUTOPLAY_LIMIT, "1").observe(getViewLifecycleOwner(), limit -> {
+            if (getPostAdapter() != null) {
+                getPostAdapter().setSimultaneousAutoplayLimit(Integer.parseInt(limit));
+            }
+        });
+
+        SharedPreferencesLiveDataKt.booleanLiveData(mSharedPreferences, SharedPreferencesUtils.SHOW_GALLERY_MEDIA_AS_GRID, false).observe(getViewLifecycleOwner(), showGalleryMediaAsGrid -> {
+            if (getPostAdapter() != null) {
+                if (getPostAdapter().setShowGalleryMediaAsGrid(showGalleryMediaAsGrid)) {
+                    refreshAdapter();
+                }
+            }
+        });
+
+        SharedPreferencesLiveDataKt.booleanLiveData(mSharedPreferences, SharedPreferencesUtils.SHOW_POST_AND_COMMENT_TOOLBAR_ITEMS_BASED_ON_SPACE, false).observe(getViewLifecycleOwner(), showPostAndCommentToolbarItemsBasedOnSpace -> {
+            if (getPostAdapter() != null) {
+                if (getPostAdapter().setShowToolbarItemsBasedOnSpace(showPostAndCommentToolbarItemsBasedOnSpace)) {
+                    refreshAdapter();
+                }
+            }
+        });
+
         return binding.getRoot();
     }
 
-    private int getNColumns(Resources resources) {
-        final boolean foldEnabled = mSharedPreferences.getBoolean(SharedPreferencesUtils.ENABLE_FOLD_SUPPORT, false);
-        if (resources.getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
-            switch (postLayout) {
-                case SharedPreferencesUtils.POST_LAYOUT_CARD_2:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT_CARD_LAYOUT_2, "1"));
-                case SharedPreferencesUtils.POST_LAYOUT_COMPACT:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT_COMPACT_LAYOUT, "1"));
-                case SharedPreferencesUtils.POST_LAYOUT_GALLERY:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT_GALLERY_LAYOUT, "2"));
-                default:
-                    if (getResources().getBoolean(R.bool.isTablet)) {
-                        if (foldEnabled) {
-                            return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT_UNFOLDED, "2"));
-                        } else {
-                            return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT, "2"));
-                        }
-                    }
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_PORTRAIT, "1"));
-            }
-        } else {
-            switch (postLayout) {
-                case SharedPreferencesUtils.POST_LAYOUT_CARD_2:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_LANDSCAPE_CARD_LAYOUT_2, "2"));
-                case SharedPreferencesUtils.POST_LAYOUT_COMPACT:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_LANDSCAPE_COMPACT_LAYOUT, "2"));
-                case SharedPreferencesUtils.POST_LAYOUT_GALLERY:
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_LANDSCAPE_GALLERY_LAYOUT, "2"));
-                default:
-                    if (getResources().getBoolean(R.bool.isTablet) && foldEnabled) {
-                        return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_LANDSCAPE_UNFOLDED, "2"));
-                    }
-                    return Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.NUMBER_OF_COLUMNS_IN_POST_FEED_LANDSCAPE, "2"));
-            }
-        }
-    }
-
     private void initializeAndBindPostViewModel() {
-        if (postType == PostPagingSource.TYPE_SEARCH) {
+        if (postType == PostType.SEARCH) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit, activity.accessToken, activity.accountName, mSharedPreferences,
+                    mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit,
+                    mRedditDataRoomDatabase, mActivity.accessToken, mActivity.accountName, mSharedPreferences,
                     mPostFeedScrolledPositionSharedPreferences, mPostHistorySharedPreferences, subredditName,
-                    query, trendingSource, postType, sortType, postFilter, readPosts)).get(PostViewModel.class);
-        } else if (postType == PostPagingSource.TYPE_SUBREDDIT) {
+                    query, trendingSource, postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
+        } else if (postType == PostType.SUBREDDIT) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit, activity.accessToken, activity.accountName, mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
-                    mPostHistorySharedPreferences, subredditName, postType, sortType, postFilter, readPosts))
-                    .get(PostViewModel.class);
-        } else if (postType == PostPagingSource.TYPE_MULTI_REDDIT) {
+                    mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit,
+                    mRedditDataRoomDatabase, mActivity.accessToken, mActivity.accountName, mSharedPreferences,
+                    mPostFeedScrolledPositionSharedPreferences, mPostHistorySharedPreferences, subredditName,
+                    postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
+        } else if (postType == PostType.MULTIREDDIT) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit, activity.accessToken, activity.accountName, mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
-                    mPostHistorySharedPreferences, multiRedditPath, postType, sortType, postFilter, readPosts))
-                    .get(PostViewModel.class);
-        } else if (postType == PostPagingSource.TYPE_USER) {
+                    mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit,
+                    mRedditDataRoomDatabase, mActivity.accessToken, mActivity.accountName, mSharedPreferences,
+                    mPostFeedScrolledPositionSharedPreferences, mPostHistorySharedPreferences, multiRedditPath,
+                    query, postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
+        } else if (postType == PostType.USER) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit, activity.accessToken, activity.accountName, mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
-                    mPostHistorySharedPreferences, username, postType, sortType, postFilter, where, readPosts))
-                    .get(PostViewModel.class);
+                    mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? mRetrofit : mOauthRetrofit,
+                    mRedditDataRoomDatabase, mActivity.accessToken, mActivity.accountName, mSharedPreferences,
+                    mPostFeedScrolledPositionSharedPreferences, mPostHistorySharedPreferences, username,
+                    postType, sortType, postFilter, where, readPostsList, loader)
+            ).get(PostViewModel.class);
         } else {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    mOauthRetrofit, activity.accessToken,
-                    activity.accountName, mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
-                    mPostHistorySharedPreferences, postType, sortType, postFilter, readPosts)).get(PostViewModel.class);
+                    mOauthRetrofit, mRedditDataRoomDatabase, mActivity.accessToken,
+                    mActivity.accountName, mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
+                    mPostHistorySharedPreferences, postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
         }
 
         bindPostViewModel();
     }
 
     private void initializeAndBindPostViewModelForAnonymous(String concatenatedSubredditNames) {
-        //For anonymous user
-        if (postType == PostPagingSource.TYPE_SEARCH) {
+        if (postType == PostType.SEARCH) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    mRetrofit, null, activity.accountName, mSharedPreferences,
-                    mPostFeedScrolledPositionSharedPreferences, null, subredditName, query, trendingSource,
-                    postType, sortType, postFilter, readPosts)).get(PostViewModel.class);
-        } else if (postType == PostPagingSource.TYPE_SUBREDDIT) {
+                    mRetrofit, mRedditDataRoomDatabase, null, mActivity.accountName, mSharedPreferences,
+                    mPostFeedScrolledPositionSharedPreferences, null, subredditName,
+                    query, trendingSource, postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
+        } else if (postType == PostType.SUBREDDIT) {
             mPostViewModel = new ViewModelProvider(this, new PostViewModel.Factory(mExecutor,
-                    mRetrofit, null, activity.accountName, mSharedPreferences,
-                    mPostFeedScrolledPositionSharedPreferences, null, subredditName, postType, sortType,
-                    postFilter, readPosts)).get(PostViewModel.class);
-        } else if (postType == PostPagingSource.TYPE_USER) {
+                    mRetrofit, mRedditDataRoomDatabase, null, mActivity.accountName,
+                    mSharedPreferences, mPostFeedScrolledPositionSharedPreferences,
+                    null, subredditName, postType, sortType, postFilter,
+                    readPostsList, loader)
+            ).get(PostViewModel.class);
+        } else if (postType == PostType.USER) {
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    mRetrofit, null, activity.accountName, mSharedPreferences,
-                    mPostFeedScrolledPositionSharedPreferences, null, username, postType, sortType, postFilter,
-                    where, readPosts)).get(PostViewModel.class);
+                    mRetrofit, mRedditDataRoomDatabase, null, mActivity.accountName, mSharedPreferences,
+                    mPostFeedScrolledPositionSharedPreferences, null, username,
+                    postType, sortType, postFilter, where, readPostsList, loader)
+            ).get(PostViewModel.class);
         } else {
             //Anonymous front page or multireddit
             mPostViewModel = new ViewModelProvider(PostFragment.this, new PostViewModel.Factory(mExecutor,
-                    mRetrofit, mSharedPreferences, concatenatedSubredditNames, postType, sortType, postFilter))
-                    .get(PostViewModel.class);
+                    mRetrofit, mRedditDataRoomDatabase, mSharedPreferences, concatenatedSubredditNames,
+                    postType, sortType, postFilter, readPostsList, loader)
+            ).get(PostViewModel.class);
         }
 
         bindPostViewModel();
     }
 
     private void bindPostViewModel() {
-        mPostViewModel.getPosts().observe(getViewLifecycleOwner(), posts -> mAdapter.submitData(getViewLifecycleOwner().getLifecycle(), posts));
+        mPostViewModel.getPosts().observe(getViewLifecycleOwner(), posts -> {
+            mAdapter.submitData(getViewLifecycleOwner().getLifecycle(), posts);
+        });
+
+        mPostViewModel.moderationEventLiveData.observe(getViewLifecycleOwner(), moderationEvent -> {
+            EventBus.getDefault().post(new PostUpdateEventToPostList(moderationEvent.getPost(), moderationEvent.getPosition()));
+            EventBus.getDefault().post(new PostUpdateEventToPostDetailFragment(moderationEvent.getPost()));
+            Toast.makeText(mActivity, moderationEvent.getToastMessageResId(), Toast.LENGTH_SHORT).show();
+        });
 
         mAdapter.addLoadStateListener(combinedLoadStates -> {
             LoadState refreshLoadState = combinedLoadStates.getRefresh();
@@ -1250,7 +977,18 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                 }
             } else if (refreshLoadState instanceof LoadState.Error) {
                 binding.fetchPostInfoLinearLayoutPostFragment.setOnClickListener(view -> refresh());
-                showErrorView(R.string.load_posts_error);
+                Throwable e = ((LoadState.Error) refreshLoadState).getError();
+                if (e instanceof PostPagingSource.PostPagingSourceError) {
+                    if (((PostPagingSource.PostPagingSourceError) e).code == 403 && Account.ANONYMOUS_ACCOUNT.equals(mActivity.accountName)) {
+                        showErrorView(R.string.load_posts_error_anonymous_403);
+                    } else if (((PostPagingSource.PostPagingSourceError) e).message != null) {
+                        showErrorView(getString(R.string.load_posts_error_with_reason, ((PostPagingSource.PostPagingSourceError) e).message));
+                    } else {
+                        showErrorView(R.string.load_posts_error);
+                    }
+                } else {
+                    showErrorView(R.string.load_posts_error);
+                }
             }
             if (!(refreshLoadState instanceof LoadState.Loading) && appendLoadState instanceof LoadState.NotLoading) {
                 if (appendLoadState.getEndOfPaginationReached() && mAdapter.getItemCount() < 1) {
@@ -1260,7 +998,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             return null;
         });
 
-        binding.recyclerViewPostFragment.setAdapter(mAdapter.withLoadStateFooter(new Paging3LoadingStateAdapter(activity, mCustomThemeWrapper, R.string.load_more_posts_error,
+        binding.recyclerViewPostFragment.setAdapter(mAdapter.withLoadStateFooter(new Paging3LoadingStateAdapter(mActivity, mCustomThemeWrapper, R.string.load_more_posts_error,
                 view -> mAdapter.retry())));
     }
 
@@ -1268,22 +1006,22 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         inflater.inflate(R.menu.post_fragment, menu);
         for (int i = 0; i < menu.size(); i++) {
-            Utils.setTitleWithCustomFontToMenuItem(activity.typeface, menu.getItem(i), null);
+            Utils.setTitleWithCustomFontToMenuItem(mActivity.typeface, menu.getItem(i), null);
         }
         lazyModeItem = menu.findItem(R.id.action_lazy_mode_post_fragment);
 
         if (isInLazyMode) {
-            Utils.setTitleWithCustomFontToMenuItem(activity.typeface, lazyModeItem, getString(R.string.action_stop_lazy_mode));
+            Utils.setTitleWithCustomFontToMenuItem(mActivity.typeface, lazyModeItem, getString(R.string.action_stop_lazy_mode));
         } else {
-            Utils.setTitleWithCustomFontToMenuItem(activity.typeface, lazyModeItem, getString(R.string.action_start_lazy_mode));
+            Utils.setTitleWithCustomFontToMenuItem(mActivity.typeface, lazyModeItem, getString(R.string.action_start_lazy_mode));
         }
 
-        if (activity instanceof FilteredPostsActivity) {
+        if (mActivity instanceof FilteredPostsActivity) {
             menu.findItem(R.id.action_filter_posts_post_fragment).setVisible(false);
         }
 
-        if (activity instanceof FilteredPostsActivity || activity instanceof AccountPostsActivity
-                || activity instanceof AccountSavedThingActivity) {
+        if (mActivity instanceof FilteredPostsActivity || mActivity instanceof AccountPostsActivity
+                || mActivity instanceof AccountSavedThingActivity) {
             menu.findItem(R.id.action_more_options_post_fragment).setVisible(false);
         }
     }
@@ -1303,9 +1041,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         } else if (item.getItemId() == R.id.action_more_options_post_fragment) {
             FABMoreOptionsBottomSheetFragment fabMoreOptionsBottomSheetFragment= new FABMoreOptionsBottomSheetFragment();
             Bundle bundle = new Bundle();
-            bundle.putBoolean(FABMoreOptionsBottomSheetFragment.EXTRA_ANONYMOUS_MODE, activity.accountName.equals(Account.ANONYMOUS_ACCOUNT));
+            bundle.putBoolean(FABMoreOptionsBottomSheetFragment.EXTRA_ANONYMOUS_MODE, mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT));
             fabMoreOptionsBottomSheetFragment.setArguments(bundle);
-            fabMoreOptionsBottomSheetFragment.show(activity.getSupportFragmentManager(), fabMoreOptionsBottomSheetFragment.getTag());
+            fabMoreOptionsBottomSheetFragment.show(mActivity.getSupportFragmentManager(), fabMoreOptionsBottomSheetFragment.getTag());
             return true;
         }
         return false;
@@ -1325,32 +1063,32 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         if (mPostViewModel != null) {
             if (mSharedPreferences.getBoolean(SharedPreferencesUtils.SAVE_SORT_TYPE, true)) {
                 switch (postType) {
-                    case PostPagingSource.TYPE_FRONT_PAGE:
+                    case PostType.FRONT_PAGE:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_BEST_POST, sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
                             mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TIME_BEST_POST, sortType.getTime().name()).apply();
                         }
                         break;
-                    case PostPagingSource.TYPE_SUBREDDIT:
+                    case PostType.SUBREDDIT:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_SUBREDDIT_POST_BASE + subredditName, sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
                             mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TIME_SUBREDDIT_POST_BASE + subredditName, sortType.getTime().name()).apply();
                         }
                         break;
-                    case PostPagingSource.TYPE_USER:
+                    case PostType.USER:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_USER_POST_BASE + username, sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
                             mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TIME_USER_POST_BASE + username, sortType.getTime().name()).apply();
                         }
                         break;
-                    case PostPagingSource.TYPE_SEARCH:
+                    case PostType.SEARCH:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_SEARCH_POST, sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
                             mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TIME_SEARCH_POST, sortType.getTime().name()).apply();
                         }
                         break;
-                    case PostPagingSource.TYPE_MULTI_REDDIT:
-                    case PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT:
+                    case PostType.MULTIREDDIT:
+                    case PostType.ANONYMOUS_MULTIREDDIT:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_MULTI_REDDIT_POST_BASE + multiRedditPath,
                                 sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
@@ -1358,7 +1096,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
                                     sortType.getTime().name()).apply();
                         }
                         break;
-                    case PostPagingSource.TYPE_ANONYMOUS_FRONT_PAGE:
+                    case PostType.ANONYMOUS_FRONT_PAGE:
                         mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_SUBREDDIT_POST_BASE + Account.ANONYMOUS_ACCOUNT, sortType.getType().name()).apply();
                         if (sortType.getTime() != null) {
                             mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TIME_SUBREDDIT_POST_BASE + Account.ANONYMOUS_ACCOUNT, sortType.getTime().name()).apply();
@@ -1380,39 +1118,10 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         }
     }
 
-    private void initializeSwipeActionDrawable() {
-        if (swipeRightAction == SharedPreferencesUtils.SWIPE_ACITON_DOWNVOTE) {
-            backgroundSwipeRight = new ColorDrawable(mCustomThemeWrapper.getDownvoted());
-            drawableSwipeRight = ResourcesCompat.getDrawable(activity.getResources(), R.drawable.ic_arrow_downward_black_24dp, null);
-        } else {
-            backgroundSwipeRight = new ColorDrawable(mCustomThemeWrapper.getUpvoted());
-            drawableSwipeRight = ResourcesCompat.getDrawable(activity.getResources(), R.drawable.ic_arrow_upward_black_24dp, null);
-        }
-
-        if (swipeLeftAction == SharedPreferencesUtils.SWIPE_ACITON_UPVOTE) {
-            backgroundSwipeLeft = new ColorDrawable(mCustomThemeWrapper.getUpvoted());
-            drawableSwipeLeft = ResourcesCompat.getDrawable(activity.getResources(), R.drawable.ic_arrow_upward_black_24dp, null);
-        } else {
-            backgroundSwipeLeft = new ColorDrawable(mCustomThemeWrapper.getDownvoted());
-            drawableSwipeLeft = ResourcesCompat.getDrawable(activity.getResources(), R.drawable.ic_arrow_downward_black_24dp, null);
-        }
-    }
-
-    public long getPostFragmentId() {
-        return postFragmentId;
-    }
-
-    @Override
-    public void onAttach(@NonNull Context context) {
-        super.onAttach(context);
-        this.activity = (BaseActivity) context;
-    }
-
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean(IS_IN_LAZY_MODE_STATE, isInLazyMode);
-        outState.putStringArrayList(READ_POST_LIST_STATE, readPosts);
         if (mLinearLayoutManager != null) {
             outState.putInt(RECYCLER_VIEW_POSITION_STATE, mLinearLayoutManager.findFirstVisibleItemPosition());
         } else if (mStaggeredGridLayoutManager != null) {
@@ -1432,10 +1141,10 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     }
 
     private void saveCache() {
-        if (savePostFeedScrolledPosition && postType == PostPagingSource.TYPE_FRONT_PAGE && sortType != null && sortType.getType() == SortType.Type.BEST && mAdapter != null) {
+        if (savePostFeedScrolledPosition && postType == PostType.FRONT_PAGE && sortType != null && sortType.getType() == SortType.Type.BEST && mAdapter != null) {
             Post currentPost = mAdapter.getItemByPosition(maxPosition);
             if (currentPost != null) {
-                String accountNameForCache = activity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_ANONYMOUS : activity.accountName;
+                String accountNameForCache = mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT) ? SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_ANONYMOUS : mActivity.accountName;
                 String key = accountNameForCache + SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_FRONT_PAGE_BASE;
                 String value = currentPost.getFullName();
                 mPostFeedScrolledPositionSharedPreferences.edit().putString(key, value).apply();
@@ -1455,13 +1164,51 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         goBackToTop();
     }
 
-    private void showErrorView(int stringResId) {
-        if (activity != null && isAdded()) {
+    @Override
+    public void loadUserIcon(List<Post> posts, UserProfileImagesBatchLoader.LoadIconListener loadIconListener) {
+        /*if (subredditOrUserIcons.containsKey(subredditOrUserFullname)) {
+            loadIconListener.loadIconSuccess(subredditOrUserFullname, subredditOrUserIcons.get(subredditOrUserFullname));
+        }*/
+
+        mPostViewModel.loadAuthorIcons(posts, loadIconListener);
+    }
+
+    @Override
+    protected void showErrorView(int stringResId) {
+        if (mActivity != null && isAdded()) {
             binding.swipeRefreshLayoutPostFragment.setRefreshing(false);
             binding.fetchPostInfoLinearLayoutPostFragment.setVisibility(View.VISIBLE);
             binding.fetchPostInfoTextViewPostFragment.setText(stringResId);
             mGlide.load(R.drawable.error_image).into(binding.fetchPostInfoImageViewPostFragment);
         }
+    }
+
+    @Override
+    protected void showErrorView(String errorMessage) {
+        if (mActivity != null && isAdded()) {
+            binding.swipeRefreshLayoutPostFragment.setRefreshing(false);
+            binding.fetchPostInfoLinearLayoutPostFragment.setVisibility(View.VISIBLE);
+            binding.fetchPostInfoTextViewPostFragment.setText(errorMessage);
+            mGlide.load(R.drawable.error_image).into(binding.fetchPostInfoImageViewPostFragment);
+        }
+    }
+
+    @NonNull
+    @Override
+    protected SwipeRefreshLayout getSwipeRefreshLayout() {
+        return binding.swipeRefreshLayoutPostFragment;
+    }
+
+    @NonNull
+    @Override
+    protected RecyclerView getPostRecyclerView() {
+        return binding.recyclerViewPostFragment;
+    }
+
+    @Nullable
+    @Override
+    protected PostRecyclerViewAdapter getPostAdapter() {
+        return mAdapter;
     }
 
     @Override
@@ -1473,113 +1220,25 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     }
 
     @Override
-    public boolean startLazyMode() {
-        if (!hasPost) {
-            Toast.makeText(activity, R.string.no_posts_no_lazy_mode, Toast.LENGTH_SHORT).show();
-            return false;
-        }
-
-        Utils.setTitleWithCustomFontToMenuItem(activity.typeface, lazyModeItem, getString(R.string.action_stop_lazy_mode));
-
-        if (mAdapter != null && mAdapter.isAutoplay()) {
-            mAdapter.setAutoplay(false);
-            refreshAdapter();
-        }
-
-        isInLazyMode = true;
-        isLazyModePaused = false;
-
-        lazyModeInterval = Float.parseFloat(mSharedPreferences.getString(SharedPreferencesUtils.LAZY_MODE_INTERVAL_KEY, "2.5"));
-        lazyModeHandler.postDelayed(lazyModeRunnable, (long) (lazyModeInterval * 1000));
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        Toast.makeText(activity, getString(R.string.lazy_mode_start, lazyModeInterval),
-                Toast.LENGTH_SHORT).show();
-
-        return true;
-    }
-
-    @Override
-    public void stopLazyMode() {
-        Utils.setTitleWithCustomFontToMenuItem(activity.typeface, lazyModeItem, getString(R.string.action_start_lazy_mode));
-        if (mAdapter != null) {
-            String autoplayString = mSharedPreferences.getString(SharedPreferencesUtils.VIDEO_AUTOPLAY, SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_NEVER);
-            if (autoplayString.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ALWAYS_ON) ||
-                    (autoplayString.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ON_WIFI) && Utils.isConnectedToWifi(activity))) {
-                mAdapter.setAutoplay(true);
-                refreshAdapter();
-            }
-        }
-        isInLazyMode = false;
-        isLazyModePaused = false;
-        lazyModeRunnable.resetOldPosition();
-        lazyModeHandler.removeCallbacks(lazyModeRunnable);
-        resumeLazyModeCountDownTimer.cancel();
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        Toast.makeText(activity, getString(R.string.lazy_mode_stop), Toast.LENGTH_SHORT).show();
-    }
-
-    @Override
-    public void resumeLazyMode(boolean resumeNow) {
-        if (isInLazyMode) {
-            if (mAdapter != null && mAdapter.isAutoplay()) {
-                mAdapter.setAutoplay(false);
-                refreshAdapter();
-            }
-            isLazyModePaused = false;
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
-            lazyModeRunnable.resetOldPosition();
-
-            if (resumeNow) {
-                lazyModeHandler.post(lazyModeRunnable);
-            } else {
-                lazyModeHandler.postDelayed(lazyModeRunnable, (long) (lazyModeInterval * 1000));
-            }
-        }
-    }
-
-    @Override
-    public void pauseLazyMode(boolean startTimer) {
-        resumeLazyModeCountDownTimer.cancel();
-        isInLazyMode = true;
-        isLazyModePaused = true;
-        lazyModeHandler.removeCallbacks(lazyModeRunnable);
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
-        if (startTimer) {
-            resumeLazyModeCountDownTimer.start();
-        }
-    }
-
-    @Override
-    public boolean isInLazyMode() {
-        return isInLazyMode;
-    }
-
-    @Override
-    public void changePostLayout(int postLayout) {
-        changePostLayout(postLayout, false);
-    }
-
     public void changePostLayout(int postLayout, boolean temporary) {
         this.postLayout = postLayout;
         if (!temporary) {
             switch (postType) {
-                case PostPagingSource.TYPE_FRONT_PAGE:
-                case PostPagingSource.TYPE_ANONYMOUS_FRONT_PAGE:
+                case PostType.FRONT_PAGE:
+                case PostType.ANONYMOUS_FRONT_PAGE:
                     mPostLayoutSharedPreferences.edit().putInt(SharedPreferencesUtils.POST_LAYOUT_FRONT_PAGE_POST, postLayout).apply();
                     break;
-                case PostPagingSource.TYPE_SUBREDDIT:
+                case PostType.SUBREDDIT:
                     mPostLayoutSharedPreferences.edit().putInt(SharedPreferencesUtils.POST_LAYOUT_SUBREDDIT_POST_BASE + subredditName, postLayout).apply();
                     break;
-                case PostPagingSource.TYPE_USER:
+                case PostType.USER:
                     mPostLayoutSharedPreferences.edit().putInt(SharedPreferencesUtils.POST_LAYOUT_USER_POST_BASE + username, postLayout).apply();
                     break;
-                case PostPagingSource.TYPE_SEARCH:
+                case PostType.SEARCH:
                     mPostLayoutSharedPreferences.edit().putInt(SharedPreferencesUtils.POST_LAYOUT_SEARCH_POST, postLayout).apply();
                     break;
-                case PostPagingSource.TYPE_MULTI_REDDIT:
-                case PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT:
+                case PostType.MULTIREDDIT:
+                case PostType.ANONYMOUS_MULTIREDDIT:
                     mPostLayoutSharedPreferences.edit().putInt(SharedPreferencesUtils.POST_LAYOUT_MULTI_REDDIT_POST_BASE + multiRedditPath, postLayout).apply();
                     break;
             }
@@ -1594,7 +1253,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         }
         int nColumns = getNColumns(getResources());
         if (nColumns == 1) {
-            mLinearLayoutManager = new LinearLayoutManagerBugFixed(activity);
+            mLinearLayoutManager = new LinearLayoutManagerBugFixed(mActivity);
             if (binding.recyclerViewPostFragment.getItemDecorationCount() > 0) {
                 binding.recyclerViewPostFragment.removeItemDecorationAt(0);
             }
@@ -1607,7 +1266,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             }
             binding.recyclerViewPostFragment.setLayoutManager(mStaggeredGridLayoutManager);
             StaggeredGridLayoutManagerItemOffsetDecoration itemDecoration =
-                    new StaggeredGridLayoutManagerItemOffsetDecoration(activity, R.dimen.staggeredLayoutManagerItemOffset, nColumns);
+                    new StaggeredGridLayoutManagerItemOffsetDecoration(mActivity, R.dimen.staggeredLayoutManagerItemOffset, nColumns);
             binding.recyclerViewPostFragment.addItemDecoration(itemDecoration);
             mLinearLayoutManager = null;
         }
@@ -1627,8 +1286,8 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         binding.swipeRefreshLayoutPostFragment.setProgressBackgroundColorSchemeColor(mCustomThemeWrapper.getCircularProgressBarBackground());
         binding.swipeRefreshLayoutPostFragment.setColorSchemeColors(mCustomThemeWrapper.getColorAccent());
         binding.fetchPostInfoTextViewPostFragment.setTextColor(mCustomThemeWrapper.getSecondaryTextColor());
-        if (activity.typeface != null) {
-            binding.fetchPostInfoTextViewPostFragment.setTypeface(activity.typeface);
+        if (mActivity.typeface != null) {
+            binding.fetchPostInfoTextViewPostFragment.setTypeface(mActivity.typeface);
         }
     }
 
@@ -1652,164 +1311,51 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
 
     @Override
     public void filterPosts() {
-        if (postType == PostPagingSource.TYPE_SEARCH) {
-            Intent intent = new Intent(activity, CustomizePostFilterActivity.class);
+        if (postType == PostType.SEARCH) {
+            Intent intent = new Intent(mActivity, CustomizePostFilterActivity.class);
             intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
             intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
             intent.putExtra(FilteredPostsActivity.EXTRA_TRENDING_SOURCE, trendingSource);
             intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
             intent.putExtra(CustomizePostFilterActivity.EXTRA_START_FILTERED_POSTS_WHEN_FINISH, true);
             startActivity(intent);
-        } else if (postType == PostPagingSource.TYPE_SUBREDDIT) {
-            Intent intent = new Intent(activity, CustomizePostFilterActivity.class);
+        } else if (postType == PostType.SUBREDDIT) {
+            Intent intent = new Intent(mActivity, CustomizePostFilterActivity.class);
             intent.putExtra(FilteredPostsActivity.EXTRA_NAME, subredditName);
             intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
             intent.putExtra(CustomizePostFilterActivity.EXTRA_START_FILTERED_POSTS_WHEN_FINISH, true);
             startActivity(intent);
-        } else if (postType == PostPagingSource.TYPE_MULTI_REDDIT || postType == PostPagingSource.TYPE_ANONYMOUS_MULTIREDDIT) {
-            Intent intent = new Intent(activity, CustomizePostFilterActivity.class);
+        } else if (postType == PostType.MULTIREDDIT || postType == PostType.ANONYMOUS_MULTIREDDIT) {
+            Intent intent = new Intent(mActivity, CustomizePostFilterActivity.class);
             intent.putExtra(FilteredPostsActivity.EXTRA_NAME, multiRedditPath);
+            intent.putExtra(FilteredPostsActivity.EXTRA_QUERY, query);
             intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
             intent.putExtra(CustomizePostFilterActivity.EXTRA_START_FILTERED_POSTS_WHEN_FINISH, true);
             startActivity(intent);
-        } else if (postType == PostPagingSource.TYPE_USER) {
-            Intent intent = new Intent(activity, CustomizePostFilterActivity.class);
+        } else if (postType == PostType.USER) {
+            Intent intent = new Intent(mActivity, CustomizePostFilterActivity.class);
             intent.putExtra(FilteredPostsActivity.EXTRA_NAME, username);
             intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
             intent.putExtra(FilteredPostsActivity.EXTRA_USER_WHERE, where);
             intent.putExtra(CustomizePostFilterActivity.EXTRA_START_FILTERED_POSTS_WHEN_FINISH, true);
             startActivity(intent);
         } else {
-            Intent intent = new Intent(activity, CustomizePostFilterActivity.class);
-            intent.putExtra(FilteredPostsActivity.EXTRA_NAME, activity.getString(R.string.best));
+            Intent intent = new Intent(mActivity, CustomizePostFilterActivity.class);
+            intent.putExtra(FilteredPostsActivity.EXTRA_NAME, mActivity.getString(R.string.best));
             intent.putExtra(FilteredPostsActivity.EXTRA_POST_TYPE, postType);
             intent.putExtra(CustomizePostFilterActivity.EXTRA_START_FILTERED_POSTS_WHEN_FINISH, true);
             startActivity(intent);
         }
     }
 
+    @Override
     public boolean getIsNsfwSubreddit() {
-        if (activity instanceof ViewSubredditDetailActivity) {
-            return ((ViewSubredditDetailActivity) activity).isNsfwSubreddit();
-        } else if (activity instanceof FilteredPostsActivity) {
-            return ((FilteredPostsActivity) activity).isNsfwSubreddit();
+        if (mActivity instanceof ViewSubredditDetailActivity) {
+            return ((ViewSubredditDetailActivity) mActivity).isNsfwSubreddit();
+        } else if (mActivity instanceof FilteredPostsActivity) {
+            return ((FilteredPostsActivity) mActivity).isNsfwSubreddit();
         } else {
             return false;
-        }
-    }
-
-    @Nullable
-    public Boolean getMasterMutingOption() {
-        return masterMutingOption;
-    }
-
-    public void videoAutoplayChangeMutingOption(boolean isMute) {
-        if (rememberMutingOptionInPostFeed) {
-            masterMutingOption = isMute;
-        }
-    }
-
-    public void loadIcon(String subredditOrUserName, boolean isSubreddit, LoadIconListener loadIconListener) {
-        if (subredditOrUserIcons.containsKey(subredditOrUserName)) {
-            loadIconListener.loadIconSuccess(subredditOrUserName, subredditOrUserIcons.get(subredditOrUserName));
-        } else {
-            if (isSubreddit) {
-                LoadSubredditIcon.loadSubredditIcon(mExecutor, new Handler(), mRedditDataRoomDatabase,
-                        subredditOrUserName, activity.accessToken, activity.accountName, mOauthRetrofit, mRetrofit,
-                        iconImageUrl -> {
-                            subredditOrUserIcons.put(subredditOrUserName, iconImageUrl);
-                            loadIconListener.loadIconSuccess(subredditOrUserName, iconImageUrl);
-                        });
-            } else {
-                LoadUserData.loadUserData(mExecutor, new Handler(), mRedditDataRoomDatabase, subredditOrUserName,
-                        mRetrofit, iconImageUrl -> {
-                            subredditOrUserIcons.put(subredditOrUserName, iconImageUrl);
-                            loadIconListener.loadIconSuccess(subredditOrUserName, iconImageUrl);
-                        });
-            }
-        }
-    }
-
-    public void markPostAsRead(Post post) {
-        if (readPosts == null) {
-            readPosts = new ArrayList<>();
-        }
-        readPosts.add(post.getId());
-    }
-
-    @Subscribe
-    public void onPostUpdateEvent(PostUpdateEventToPostList event) {
-        ItemSnapshotList<Post> posts = mAdapter.snapshot();
-        if (event.positionInList >= 0 && event.positionInList < posts.size()) {
-            Post post = posts.get(event.positionInList);
-            if (post != null && post.getFullName().equals(event.post.getFullName())) {
-                post.setTitle(event.post.getTitle());
-                post.setVoteType(event.post.getVoteType());
-                post.setScore(event.post.getScore());
-                post.setNComments(event.post.getNComments());
-                post.setNSFW(event.post.isNSFW());
-                post.setHidden(event.post.isHidden());
-                post.setSpoiler(event.post.isSpoiler());
-                post.setFlair(event.post.getFlair());
-                post.setSaved(event.post.isSaved());
-                if (event.post.isRead()) {
-                    post.markAsRead();
-                }
-                mAdapter.notifyItemChanged(event.positionInList);
-            }
-        }
-    }
-
-    @Subscribe
-    public void onChangeShowElapsedTimeEvent(ChangeShowElapsedTimeEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setShowElapsedTime(event.showElapsedTime);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeTimeFormatEvent(ChangeTimeFormatEvent changeTimeFormatEvent) {
-        if (mAdapter != null) {
-            mAdapter.setTimeFormat(changeTimeFormatEvent.timeFormat);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeVoteButtonsPositionEvent(ChangeVoteButtonsPositionEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setVoteButtonsPosition(event.voteButtonsOnTheRight);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeNSFWBlurEvent(ChangeNSFWBlurEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setBlurNsfwAndDoNotBlurNsfwInNsfwSubreddits(event.needBlurNSFW, event.doNotBlurNsfwInNsfwSubreddits);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeSpoilerBlurEvent(ChangeSpoilerBlurEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setBlurSpoiler(event.needBlurSpoiler);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangePostLayoutEvent(ChangePostLayoutEvent event) {
-        changePostLayout(event.postLayout);
-    }
-
-    @Subscribe
-    public void onShowDividerInCompactLayoutPreferenceEvent(ShowDividerInCompactLayoutPreferenceEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setShowDividerInCompactLayout(event.showDividerInCompactLayout);
-            refreshAdapter();
         }
     }
 
@@ -1818,27 +1364,27 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         Bundle bundle = getArguments();
         if (bundle != null) {
             switch (postType) {
-                case PostPagingSource.TYPE_SUBREDDIT:
+                case PostType.SUBREDDIT:
                     if (!mPostLayoutSharedPreferences.contains(SharedPreferencesUtils.POST_LAYOUT_SUBREDDIT_POST_BASE + bundle.getString(EXTRA_NAME))) {
                         changePostLayout(changeDefaultPostLayoutEvent.defaultPostLayout, true);
                     }
                     break;
-                case PostPagingSource.TYPE_USER:
+                case PostType.USER:
                     if (!mPostLayoutSharedPreferences.contains(SharedPreferencesUtils.POST_LAYOUT_USER_POST_BASE + bundle.getString(EXTRA_USER_NAME))) {
                         changePostLayout(changeDefaultPostLayoutEvent.defaultPostLayout, true);
                     }
                     break;
-                case PostPagingSource.TYPE_MULTI_REDDIT:
+                case PostType.MULTIREDDIT:
                     if (!mPostLayoutSharedPreferences.contains(SharedPreferencesUtils.POST_LAYOUT_MULTI_REDDIT_POST_BASE + bundle.getString(EXTRA_NAME))) {
                         changePostLayout(changeDefaultPostLayoutEvent.defaultPostLayout, true);
                     }
                     break;
-                case PostPagingSource.TYPE_SEARCH:
+                case PostType.SEARCH:
                     if (!mPostLayoutSharedPreferences.contains(SharedPreferencesUtils.POST_LAYOUT_SEARCH_POST)) {
                         changePostLayout(changeDefaultPostLayoutEvent.defaultPostLayout, true);
                     }
                     break;
-                case PostPagingSource.TYPE_FRONT_PAGE:
+                case PostType.FRONT_PAGE:
                     if (!mPostLayoutSharedPreferences.contains(SharedPreferencesUtils.POST_LAYOUT_FRONT_PAGE_POST)) {
                         changePostLayout(changeDefaultPostLayoutEvent.defaultPostLayout, true);
                     }
@@ -1848,179 +1394,8 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     }
 
     @Subscribe
-    public void onChangeDefaultLinkPostLayoutEvent(ChangeDefaultLinkPostLayoutEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setDefaultLinkPostLayout(event.defaultLinkPostLayout);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeShowAbsoluteNumberOfVotesEvent(ChangeShowAbsoluteNumberOfVotesEvent changeShowAbsoluteNumberOfVotesEvent) {
-        if (mAdapter != null) {
-            mAdapter.setShowAbsoluteNumberOfVotes(changeShowAbsoluteNumberOfVotesEvent.showAbsoluteNumberOfVotes);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeVideoAutoplayEvent(ChangeVideoAutoplayEvent changeVideoAutoplayEvent) {
-        if (mAdapter != null) {
-            boolean autoplay = false;
-            if (changeVideoAutoplayEvent.autoplay.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ALWAYS_ON)) {
-                autoplay = true;
-            } else if (changeVideoAutoplayEvent.autoplay.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ON_WIFI)) {
-                autoplay = Utils.isConnectedToWifi(activity);
-            }
-            mAdapter.setAutoplay(autoplay);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeAutoplayNsfwVideosEvent(ChangeAutoplayNsfwVideosEvent changeAutoplayNsfwVideosEvent) {
-        if (mAdapter != null) {
-            mAdapter.setAutoplayNsfwVideos(changeAutoplayNsfwVideosEvent.autoplayNsfwVideos);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeMuteAutoplayingVideosEvent(ChangeMuteAutoplayingVideosEvent changeMuteAutoplayingVideosEvent) {
-        if (mAdapter != null) {
-            mAdapter.setMuteAutoplayingVideos(changeMuteAutoplayingVideosEvent.muteAutoplayingVideos);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeNetworkStatusEvent(ChangeNetworkStatusEvent changeNetworkStatusEvent) {
-        if (mAdapter != null) {
-            String autoplay = mSharedPreferences.getString(SharedPreferencesUtils.VIDEO_AUTOPLAY, SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_NEVER);
-            String dataSavingMode = mSharedPreferences.getString(SharedPreferencesUtils.DATA_SAVING_MODE, SharedPreferencesUtils.DATA_SAVING_MODE_OFF);
-            boolean stateChanged = false;
-            if (autoplay.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ON_WIFI)) {
-                mAdapter.setAutoplay(changeNetworkStatusEvent.connectedNetwork == Utils.NETWORK_TYPE_WIFI);
-                stateChanged = true;
-            }
-            if (dataSavingMode.equals(SharedPreferencesUtils.DATA_SAVING_MODE_ONLY_ON_CELLULAR_DATA)) {
-                mAdapter.setDataSavingMode(changeNetworkStatusEvent.connectedNetwork == Utils.NETWORK_TYPE_CELLULAR);
-                stateChanged = true;
-            }
-
-            if (stateChanged) {
-                refreshAdapter();
-            }
-        }
-    }
-
-    @Subscribe
-    public void onShowThumbnailOnTheRightInCompactLayoutEvent(ShowThumbnailOnTheRightInCompactLayoutEvent showThumbnailOnTheRightInCompactLayoutEvent) {
-        if (mAdapter != null) {
-            mAdapter.setShowThumbnailOnTheRightInCompactLayout(showThumbnailOnTheRightInCompactLayoutEvent.showThumbnailOnTheRightInCompactLayout);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeStartAutoplayVisibleAreaOffsetEvent(ChangeStartAutoplayVisibleAreaOffsetEvent changeStartAutoplayVisibleAreaOffsetEvent) {
-        if (mAdapter != null) {
-            mAdapter.setStartAutoplayVisibleAreaOffset(changeStartAutoplayVisibleAreaOffsetEvent.startAutoplayVisibleAreaOffset);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeMuteNSFWVideoEvent(ChangeMuteNSFWVideoEvent changeMuteNSFWVideoEvent) {
-        if (mAdapter != null) {
-            mAdapter.setMuteNSFWVideo(changeMuteNSFWVideoEvent.muteNSFWVideo);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
     public void onChangeSavePostFeedScrolledPositionEvent(ChangeSavePostFeedScrolledPositionEvent changeSavePostFeedScrolledPositionEvent) {
         savePostFeedScrolledPosition = changeSavePostFeedScrolledPositionEvent.savePostFeedScrolledPosition;
-    }
-
-    @Subscribe
-    public void onChangeVibrateWhenActionTriggeredEvent(ChangeVibrateWhenActionTriggeredEvent changeVibrateWhenActionTriggeredEvent) {
-        vibrateWhenActionTriggered = changeVibrateWhenActionTriggeredEvent.vibrateWhenActionTriggered;
-    }
-
-    @Subscribe
-    public void onChangeEnableSwipeActionSwitchEvent(ChangeEnableSwipeActionSwitchEvent changeEnableSwipeActionSwitchEvent) {
-        if (getNColumns(getResources()) == 1 && touchHelper != null) {
-            swipeActionEnabled = changeEnableSwipeActionSwitchEvent.enableSwipeAction;
-            if (changeEnableSwipeActionSwitchEvent.enableSwipeAction) {
-                touchHelper.attachToRecyclerView(binding.recyclerViewPostFragment);
-            } else {
-                touchHelper.attachToRecyclerView(null);
-            }
-        }
-    }
-
-    @Subscribe
-    public void onChangePullToRefreshEvent(ChangePullToRefreshEvent changePullToRefreshEvent) {
-        binding.swipeRefreshLayoutPostFragment.setEnabled(changePullToRefreshEvent.pullToRefresh);
-    }
-
-    @Subscribe
-    public void onChangeLongPressToHideToolbarInCompactLayoutEvent(ChangeLongPressToHideToolbarInCompactLayoutEvent changeLongPressToHideToolbarInCompactLayoutEvent) {
-        if (mAdapter != null) {
-            mAdapter.setLongPressToHideToolbarInCompactLayout(changeLongPressToHideToolbarInCompactLayoutEvent.longPressToHideToolbarInCompactLayout);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeCompactLayoutToolbarHiddenByDefaultEvent(ChangeCompactLayoutToolbarHiddenByDefaultEvent changeCompactLayoutToolbarHiddenByDefaultEvent) {
-        if (mAdapter != null) {
-            mAdapter.setCompactLayoutToolbarHiddenByDefault(changeCompactLayoutToolbarHiddenByDefaultEvent.compactLayoutToolbarHiddenByDefault);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeSwipeActionThresholdEvent(ChangeSwipeActionThresholdEvent changeSwipeActionThresholdEvent) {
-        swipeActionThreshold = changeSwipeActionThresholdEvent.swipeActionThreshold;
-    }
-
-    @Subscribe
-    public void onChangeDataSavingModeEvent(ChangeDataSavingModeEvent changeDataSavingModeEvent) {
-        if (mAdapter != null) {
-            boolean dataSavingMode = false;
-            if (changeDataSavingModeEvent.dataSavingMode.equals(SharedPreferencesUtils.DATA_SAVING_MODE_ONLY_ON_CELLULAR_DATA)) {
-                dataSavingMode = Utils.isConnectedToCellularData(activity);
-            } else if (changeDataSavingModeEvent.dataSavingMode.equals(SharedPreferencesUtils.DATA_SAVING_MODE_ALWAYS)) {
-                dataSavingMode = true;
-            }
-            mAdapter.setDataSavingMode(dataSavingMode);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeDisableImagePreviewEvent(ChangeDisableImagePreviewEvent changeDisableImagePreviewEvent) {
-        if (mAdapter != null) {
-            mAdapter.setDisableImagePreview(changeDisableImagePreviewEvent.disableImagePreview);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeOnlyDisablePreviewInVideoAndGifPostsEvent(ChangeOnlyDisablePreviewInVideoAndGifPostsEvent changeOnlyDisablePreviewInVideoAndGifPostsEvent) {
-        if (mAdapter != null) {
-            mAdapter.setOnlyDisablePreviewInVideoPosts(changeOnlyDisablePreviewInVideoAndGifPostsEvent.onlyDisablePreviewInVideoAndGifPosts);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeSwipeActionEvent(ChangeSwipeActionEvent changeSwipeActionEvent) {
-        swipeRightAction = changeSwipeActionEvent.swipeRightAction == -1 ? swipeRightAction : changeSwipeActionEvent.swipeRightAction;
-        swipeLeftAction = changeSwipeActionEvent.swipeLeftAction == -1 ? swipeLeftAction : changeSwipeActionEvent.swipeLeftAction;
-        initializeSwipeActionDrawable();
     }
 
     @Subscribe
@@ -2029,90 +1404,17 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
             EventBus.getDefault().post(new ProvidePostListToViewPostDetailActivityEvent(postFragmentId,
                     new ArrayList<>(mAdapter.snapshot()), postType, subredditName,
                     concatenatedSubredditNames, username, where, multiRedditPath, query, trendingSource,
-                    postFilter, sortType, readPosts));
+                    ReadPostType.INVALID, postFilter, sortType, readPostsList));
         }
     }
 
     @Subscribe
-    public void onChangeHidePostTypeEvent(ChangeHidePostTypeEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setHidePostType(event.hidePostType);
-            refreshAdapter();
-        }
+    public void onFlairSelectedEvent(FlairSelectedEvent event) {
+
     }
 
-    @Subscribe
-    public void onChangeHidePostFlairEvent(ChangeHidePostFlairEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setHidePostFlair(event.hidePostFlair);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeHideSubredditAndUserEvent(ChangeHideSubredditAndUserPrefixEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setHideSubredditAndUserPrefix(event.hideSubredditAndUserPrefix);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeHideTheNumberOfVotesEvent(ChangeHideTheNumberOfVotesEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setHideTheNumberOfVotes(event.hideTheNumberOfVotes);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeHideTheNumberOfCommentsEvent(ChangeHideTheNumberOfCommentsEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setHideTheNumberOfComments(event.hideTheNumberOfComments);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeRememberMutingOptionInPostFeedEvent(ChangeRememberMutingOptionInPostFeedEvent event) {
-        rememberMutingOptionInPostFeed = event.rememberMutingOptionInPostFeedEvent;
-        if (!event.rememberMutingOptionInPostFeedEvent) {
-            masterMutingOption = null;
-        }
-    }
-
-    @Subscribe
-    public void onChangeFixedHeightPreviewCardEvent(ChangeFixedHeightPreviewInCardEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setFixedHeightPreviewInCard(event.fixedHeightPreviewInCard);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeHideTextPostContentEvent(ChangeHideTextPostContent event) {
-        if (mAdapter != null) {
-            mAdapter.setHideTextPostContent(event.hideTextPostContent);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangePostFeedMaxResolutionEvent(ChangePostFeedMaxResolutionEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setPostFeedMaxResolution(event.postFeedMaxResolution);
-            refreshAdapter();
-        }
-    }
-
-    @Subscribe
-    public void onChangeEasierToWatchInFullScreenEvent(ChangeEasierToWatchInFullScreenEvent event) {
-        if (mAdapter != null) {
-            mAdapter.setEasierToWatchInFullScreen(event.easierToWatchInFullScreen);
-        }
-    }
-
-    private void refreshAdapter() {
+    @Override
+    protected void refreshAdapter() {
         int previousPosition = -1;
         if (mLinearLayoutManager != null) {
             previousPosition = mLinearLayoutManager.findFirstVisibleItemPosition();
@@ -2149,6 +1451,7 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         return sortType;
     }
 
+    @PostType
     public int getPostType() {
         return postType;
     }
@@ -2165,10 +1468,9 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
     }
 
     @Override
-    public void onDestroy() {
-        EventBus.getDefault().unregister(this);
+    public void onDestroyView() {
         binding.recyclerViewPostFragment.addOnWindowFocusChangedListener(null);
-        super.onDestroy();
+        super.onDestroyView();
     }
 
     private void onWindowFocusChanged(boolean hasWindowsFocus) {
@@ -2177,82 +1479,54 @@ public class PostFragment extends Fragment implements FragmentCommunicator {
         }
     }
 
-    public boolean isRecyclerViewItemSwipeable(RecyclerView.ViewHolder viewHolder) {
-        if (swipeActionEnabled) {
-            if (viewHolder instanceof PostRecyclerViewAdapter.PostBaseGalleryTypeViewHolder) {
-                return !((PostRecyclerViewAdapter.PostBaseGalleryTypeViewHolder) viewHolder).isSwipeLocked();
-            }
-
-            return true;
-        }
-
-        return false;
+    @Override
+    public void approvePost(@NonNull Post post, int position) {
+        mPostViewModel.approvePost(post, position);
     }
 
-    private static abstract class LazyModeRunnable implements Runnable {
-        private int currentPosition = -1;
-
-        int getCurrentPosition() {
-            return currentPosition;
-        }
-
-        void setCurrentPosition(int currentPosition) {
-            this.currentPosition = currentPosition;
-        }
-
-        void incrementCurrentPosition() {
-            currentPosition++;
-        }
-
-        void resetOldPosition() {
-            currentPosition = -1;
-        }
+    @Override
+    public void removePost(@NonNull Post post, int position, boolean isSpam) {
+        mPostViewModel.removePost(post, position, isSpam);
     }
 
-    private static class StaggeredGridLayoutManagerItemOffsetDecoration extends RecyclerView.ItemDecoration {
-
-        private final int mItemOffset;
-        private final int mNColumns;
-
-        StaggeredGridLayoutManagerItemOffsetDecoration(int itemOffset, int nColumns) {
-            mItemOffset = itemOffset;
-            mNColumns = nColumns;
-        }
-
-        StaggeredGridLayoutManagerItemOffsetDecoration(@NonNull Context context, @DimenRes int itemOffsetId, int nColumns) {
-            this(context.getResources().getDimensionPixelSize(itemOffsetId), nColumns);
-        }
-
-        @Override
-        public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent,
-                                   @NonNull RecyclerView.State state) {
-            super.getItemOffsets(outRect, view, parent, state);
-
-            StaggeredGridLayoutManager.LayoutParams layoutParams = (StaggeredGridLayoutManager.LayoutParams) view.getLayoutParams();
-
-            int spanIndex = layoutParams.getSpanIndex();
-
-            int halfOffset = mItemOffset / 2;
-
-            if (mNColumns == 2) {
-                if (spanIndex == 0) {
-                    outRect.set(halfOffset, 0, halfOffset / 2, 0);
-                } else {
-                    outRect.set(halfOffset / 2, 0, halfOffset, 0);
-                }
-            } else if (mNColumns == 3) {
-                if (spanIndex == 0) {
-                    outRect.set(halfOffset, 0, halfOffset / 2, 0);
-                } else if (spanIndex == 1) {
-                    outRect.set(halfOffset / 2, 0, halfOffset / 2, 0);
-                } else {
-                    outRect.set(halfOffset / 2, 0, halfOffset, 0);
-                }
-            }
-        }
+    @Override
+    public void toggleSticky(@NonNull Post post, int position) {
+        mPostViewModel.toggleSticky(post, position);
     }
 
-    public interface LoadIconListener {
-        void loadIconSuccess(String subredditOrUserName, String iconUrl);
+    @Override
+    public void toggleLock(@NonNull Post post, int position) {
+        mPostViewModel.toggleLock(post, position);
+    }
+
+    @Override
+    public void toggleNSFW(@NonNull Post post, int position) {
+        mPostViewModel.toggleNSFW(post, position);
+    }
+
+    @Override
+    public void toggleSpoiler(@NonNull Post post, int position) {
+        mPostViewModel.toggleSpoiler(post, position);
+    }
+
+    @Override
+    public void changeFlair(@NonNull Post post, int position) {
+        FlairBottomSheetFragment flairBottomSheetFragment = new FlairBottomSheetFragment();
+        Bundle bundle = new Bundle();
+        bundle.putString(FlairBottomSheetFragment.EXTRA_SUBREDDIT_NAME, post.getSubredditName());
+        bundle.putLong(FlairBottomSheetFragment.EXTRA_CALLING_FRAGMENT_ID, postFragmentId);
+        bundle.putBoolean(FlairBottomSheetFragment.EXTRA_SHOW_REMOVE_FLAIR_OPTION, true);
+        flairBottomSheetFragment.setArguments(bundle);
+        flairBottomSheetFragment.show(mActivity.getSupportFragmentManager(), flairBottomSheetFragment.getTag());
+    }
+
+    @Override
+    public void toggleMod(@NonNull Post post, int position) {
+        mPostViewModel.toggleMod(post, position);
+    }
+
+    @Override
+    public void toggleNotification(@NotNull Post post, int position) {
+        mPostViewModel.toggleNotification(post, position);
     }
 }

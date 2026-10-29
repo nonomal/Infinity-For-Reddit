@@ -3,11 +3,13 @@ package ml.docilealligator.infinityforreddit.comment;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import androidx.annotation.NonNull;
+
 import java.util.ArrayList;
 import java.util.Map;
 
 import ml.docilealligator.infinityforreddit.BuildConfig;
-import ml.docilealligator.infinityforreddit.MediaMetadata;
+import ml.docilealligator.infinityforreddit.thing.MediaMetadata;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 
 public class Comment implements Parcelable {
@@ -31,6 +33,7 @@ public class Comment implements Parcelable {
     private String id;
     private String fullName;
     private String author;
+    private String authorFullName;
     private String authorFlair;
     private String authorFlairHTML;
     private String authorIconUrl;
@@ -52,8 +55,17 @@ public class Comment implements Parcelable {
     private boolean hasReply;
     private boolean scoreHidden;
     private boolean saved;
+    private boolean sendReplies;
+    private boolean locked;
+    private boolean canModComment;
+    private boolean approved;
+    private long approvedAtUTC;
+    private String approvedBy;
+    private boolean removed;
+    private boolean spam;
     private boolean isExpanded;
     private boolean hasExpandedBefore;
+    private boolean isFilteredOut;
     private ArrayList<Comment> children;
     private ArrayList<String> moreChildrenIds;
     private int placeholderType;
@@ -62,16 +74,19 @@ public class Comment implements Parcelable {
     private long editedTimeMillis;
     private Map<String, MediaMetadata> mediaMetadataMap;
 
-    public Comment(String id, String fullName, String author, String authorFlair,
+    public Comment(String id, String fullName, String author, String authorFullName, String authorFlair,
                    String authorFlairHTML, String linkAuthor,
                    long commentTimeMillis, String commentMarkdown, String commentRawText,
                    String linkId, String subredditName, String parentId, int score,
                    int voteType, boolean isSubmitter, String distinguished, String permalink,
                    int depth, boolean collapsed, boolean hasReply,
-                   boolean scoreHidden, boolean saved, long edited, Map<String, MediaMetadata> mediaMetadataMap) {
+                   boolean scoreHidden, boolean saved, boolean sendReplies, boolean locked, boolean canModComment,
+                   boolean approved, long approvedAtUTC, String approvedBy, boolean removed, boolean spam,
+                   long edited, Map<String, MediaMetadata> mediaMetadataMap) {
         this.id = id;
         this.fullName = fullName;
         this.author = author;
+        this.authorFullName = authorFullName;
         this.authorFlair = authorFlair;
         this.authorFlairHTML = authorFlairHTML;
         this.linkAuthor = linkAuthor;
@@ -91,6 +106,14 @@ public class Comment implements Parcelable {
         this.hasReply = hasReply;
         this.scoreHidden = scoreHidden;
         this.saved = saved;
+        this.sendReplies = sendReplies;
+        this.locked = locked;
+        this.canModComment = canModComment;
+        this.approved = approved;
+        this.approvedAtUTC = approvedAtUTC;
+        this.approvedBy = approvedBy;
+        this.removed = removed;
+        this.spam = spam;
         this.isExpanded = false;
         this.hasExpandedBefore = false;
         this.editedTimeMillis = edited;
@@ -111,14 +134,58 @@ public class Comment implements Parcelable {
         loadMoreChildrenFailed = false;
     }
 
-    public Comment(String parentFullName) {
-
+    // Copy constructor
+    public Comment(@NonNull Comment commentToBeCopied) {
+        this.id = commentToBeCopied.id;
+        this.fullName = commentToBeCopied.fullName;
+        this.author = commentToBeCopied.author;
+        this.authorFullName = commentToBeCopied.authorFullName;
+        this.authorFlair = commentToBeCopied.authorFlair;
+        this.authorFlairHTML = commentToBeCopied.authorFlairHTML;
+        this.authorIconUrl = commentToBeCopied.authorIconUrl;
+        this.linkAuthor = commentToBeCopied.linkAuthor;
+        this.commentTimeMillis = commentToBeCopied.commentTimeMillis;
+        this.commentMarkdown = commentToBeCopied.commentMarkdown;
+        this.commentRawText = commentToBeCopied.commentRawText;
+        this.linkId = commentToBeCopied.linkId;
+        this.subredditName = commentToBeCopied.subredditName;
+        this.parentId = commentToBeCopied.parentId;
+        this.score = commentToBeCopied.score;
+        this.voteType = commentToBeCopied.voteType;
+        this.isSubmitter = commentToBeCopied.isSubmitter;
+        this.distinguished = commentToBeCopied.distinguished;
+        this.permalink = commentToBeCopied.permalink;
+        this.depth = commentToBeCopied.depth;
+        this.childCount = commentToBeCopied.childCount;
+        this.collapsed = commentToBeCopied.collapsed;
+        this.hasReply = commentToBeCopied.hasReply;
+        this.scoreHidden = commentToBeCopied.scoreHidden;
+        this.saved = commentToBeCopied.saved;
+        this.sendReplies = commentToBeCopied.sendReplies;
+        this.locked = commentToBeCopied.locked;
+        this.canModComment = commentToBeCopied.canModComment;
+        this.approved = commentToBeCopied.approved;
+        this.approvedAtUTC = commentToBeCopied.approvedAtUTC;
+        this.approvedBy = commentToBeCopied.approvedBy;
+        this.removed = commentToBeCopied.removed;
+        this.spam = commentToBeCopied.spam;
+        this.isExpanded = commentToBeCopied.isExpanded;
+        this.hasExpandedBefore = commentToBeCopied.hasExpandedBefore;
+        this.isFilteredOut = commentToBeCopied.isFilteredOut;
+        this.children = commentToBeCopied.children;
+        this.moreChildrenIds = commentToBeCopied.moreChildrenIds;
+        this.editedTimeMillis = commentToBeCopied.editedTimeMillis;
+        this.mediaMetadataMap = commentToBeCopied.mediaMetadataMap;
+        this.placeholderType = commentToBeCopied.placeholderType;
+        this.isLoadingMoreChildren = commentToBeCopied.isLoadingMoreChildren;
+        this.loadMoreChildrenFailed = commentToBeCopied.loadMoreChildrenFailed;
     }
 
     protected Comment(Parcel in) {
         id = in.readString();
         fullName = in.readString();
         author = in.readString();
+        authorFullName = in.readString();
         authorFlair = in.readString();
         authorFlairHTML = in.readString();
         authorIconUrl = in.readString();
@@ -139,8 +206,19 @@ public class Comment implements Parcelable {
         collapsed = in.readByte() != 0;
         hasReply = in.readByte() != 0;
         scoreHidden = in.readByte() != 0;
+        saved = in.readByte() != 0;
+        sendReplies = in.readByte() != 0;
+        locked = in.readByte() != 0;
+        canModComment = in.readByte() != 0;
+        approved = in.readByte() != 0;
+        approvedAtUTC = in.readLong();
+        approvedBy = in.readString();
+        removed = in.readByte() != 0;
+        spam = in.readByte() != 0;
         isExpanded = in.readByte() != 0;
         hasExpandedBefore = in.readByte() != 0;
+        editedTimeMillis = in.readLong();
+        isFilteredOut = in.readByte() != 0;
         children = new ArrayList<>();
         in.readTypedList(children, Comment.CREATOR);
         moreChildrenIds = new ArrayList<>();
@@ -169,6 +247,10 @@ public class Comment implements Parcelable {
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public String getAuthorFullName() {
+        return authorFullName;
     }
 
     public String getAuthorFlair() {
@@ -247,6 +329,10 @@ public class Comment implements Parcelable {
         return distinguished != null && distinguished.equals("moderator");
     }
 
+    public void setIsModerator(boolean value) {
+        distinguished = value ? "moderator" : null;
+    }
+
     public boolean isAdmin() {
         return distinguished != null && distinguished.equals("admin");
     }
@@ -291,6 +377,63 @@ public class Comment implements Parcelable {
         this.saved = saved;
     }
 
+    public boolean isSendReplies() {
+        return sendReplies;
+    }
+
+    public void toggleSendReplies() {
+        sendReplies = !sendReplies;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
+    public boolean isCanModComment() {
+        return canModComment;
+    }
+
+    public boolean isApproved() {
+        return approved;
+    }
+
+    public void setApproved(boolean approved) {
+        this.approved = approved;
+    }
+
+    public long getApprovedAtUTC() {
+        return approvedAtUTC;
+    }
+
+    public void setApprovedAtUTC(long approvedAtUTC) {
+        this.approvedAtUTC = approvedAtUTC;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public boolean isRemoved() {
+        return removed;
+    }
+
+    public void setRemoved(boolean removed, boolean spam) {
+        this.removed = removed;
+        this.spam = spam;
+    }
+
+    public boolean isSpam() {
+        return spam;
+    }
+
     public boolean isExpanded() {
         return isExpanded;
     }
@@ -304,6 +447,14 @@ public class Comment implements Parcelable {
 
     public boolean hasExpandedBefore() {
         return hasExpandedBefore;
+    }
+
+    public boolean isFilteredOut() {
+        return isFilteredOut;
+    }
+
+    public void setIsFilteredOut(boolean isFilteredOut) {
+        this.isFilteredOut = isFilteredOut;
     }
 
     public int getVoteType() {
@@ -404,6 +555,10 @@ public class Comment implements Parcelable {
         return mediaMetadataMap;
     }
 
+    public void setMediaMetadataMap(Map<String, MediaMetadata> mediaMetadataMap) {
+        this.mediaMetadataMap = mediaMetadataMap;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -414,6 +569,7 @@ public class Comment implements Parcelable {
         parcel.writeString(id);
         parcel.writeString(fullName);
         parcel.writeString(author);
+        parcel.writeString(authorFullName);
         parcel.writeString(authorFlair);
         parcel.writeString(authorFlairHTML);
         parcel.writeString(authorIconUrl);
@@ -434,8 +590,19 @@ public class Comment implements Parcelable {
         parcel.writeByte((byte) (collapsed ? 1 : 0));
         parcel.writeByte((byte) (hasReply ? 1 : 0));
         parcel.writeByte((byte) (scoreHidden ? 1 : 0));
+        parcel.writeByte((byte) (saved ? 1 : 0));
+        parcel.writeByte((byte) (sendReplies ? 1 : 0));
+        parcel.writeByte((byte) (locked ? 1 : 0));
+        parcel.writeByte((byte) (canModComment ? 1 : 0));
+        parcel.writeByte((byte) (approved ? 1 : 0));
+        parcel.writeLong(approvedAtUTC);
+        parcel.writeString(approvedBy);
+        parcel.writeByte((byte) (removed ? 1 : 0));
+        parcel.writeByte((byte) (spam ? 1 : 0));
         parcel.writeByte((byte) (isExpanded ? 1 : 0));
         parcel.writeByte((byte) (hasExpandedBefore ? 1 : 0));
+        parcel.writeLong(editedTimeMillis);
+        parcel.writeByte((byte) (isFilteredOut ? 1 : 0));
         parcel.writeTypedList(children);
         parcel.writeStringList(moreChildrenIds);
         parcel.writeInt(placeholderType);

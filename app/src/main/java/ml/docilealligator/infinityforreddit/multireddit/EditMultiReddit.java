@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.apis.RedditAPI;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import retrofit2.Call;
@@ -52,10 +52,10 @@ public class EditMultiReddit {
                                                 EditMultiRedditListener editMultiRedditListener) {
         executor.execute(() -> {
             ArrayList<AnonymousMultiredditSubreddit> anonymousMultiredditSubreddits = new ArrayList<>();
-            ArrayList<String> subreddits = multiReddit.getSubreddits();
+            ArrayList<ExpandedSubredditInMultiReddit> subreddits = multiReddit.getSubreddits();
             redditDataRoomDatabase.multiRedditDao().insert(multiReddit);
-            for (String s : subreddits) {
-                anonymousMultiredditSubreddits.add(new AnonymousMultiredditSubreddit(multiReddit.getPath(), s));
+            for (ExpandedSubredditInMultiReddit s : subreddits) {
+                anonymousMultiredditSubreddits.add(new AnonymousMultiredditSubreddit(multiReddit.getPath(), s.getName(), s.getIconUrl()));
             }
             redditDataRoomDatabase.anonymousMultiredditSubredditDao().insertAll(anonymousMultiredditSubreddits);
             handler.post(editMultiRedditListener::success);

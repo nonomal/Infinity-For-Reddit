@@ -24,9 +24,13 @@ import io.noties.markwon.MarkwonReducer;
 import io.noties.markwon.recycler.MarkwonAdapter;
 import io.noties.markwon.recycler.SimpleEntry;
 import ml.docilealligator.infinityforreddit.R;
+import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.customviews.SpoilerOnClickTextView;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifBlock;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifEntry;
 
 public class CustomMarkwonAdapter extends MarkwonAdapter {
+    private BaseActivity activity;
     private final SparseArray<Entry<Node, Holder>> entries;
     private final Entry<Node, Holder> defaultEntry;
     private final MarkwonReducer reducer;
@@ -43,9 +47,11 @@ public class CustomMarkwonAdapter extends MarkwonAdapter {
 
     @SuppressWarnings("WeakerAccess")
     CustomMarkwonAdapter(
+            @NonNull BaseActivity activity,
             @NonNull SparseArray<Entry<Node, Holder>> entries,
             @NonNull Entry<Node, Holder> defaultEntry,
             @NonNull MarkwonReducer reducer) {
+        this.activity = activity;
         this.entries = entries;
         this.defaultEntry = defaultEntry;
         this.reducer = reducer;
@@ -63,16 +69,17 @@ public class CustomMarkwonAdapter extends MarkwonAdapter {
 
     @NonNull
     public static CustomBuilderImpl builder(
+            @NonNull BaseActivity activity,
             @LayoutRes int defaultEntryLayoutResId,
             @IdRes int defaultEntryTextViewResId
     ) {
-        return builder(SimpleEntry.create(defaultEntryLayoutResId, defaultEntryTextViewResId));
+        return builder(activity, SimpleEntry.create(defaultEntryLayoutResId, defaultEntryTextViewResId));
     }
 
     @NonNull
-    public static CustomBuilderImpl builder(@NonNull Entry<? extends Node, ? extends Holder> defaultEntry) {
+    public static CustomBuilderImpl builder(@NonNull BaseActivity activity, @NonNull Entry<? extends Node, ? extends Holder> defaultEntry) {
         //noinspection unchecked
-        return new CustomBuilderImpl((Entry<Node, Holder>) defaultEntry);
+        return new CustomBuilderImpl(activity, (Entry<Node, Holder>) defaultEntry);
     }
 
     @Override
@@ -246,13 +253,16 @@ public class CustomMarkwonAdapter extends MarkwonAdapter {
 
     public static class CustomBuilderImpl implements Builder {
 
+        private final BaseActivity activity;
+
         private final SparseArray<Entry<Node, Holder>> entries = new SparseArray<>(3);
 
         private final Entry<Node, Holder> defaultEntry;
 
         private MarkwonReducer reducer;
 
-        CustomBuilderImpl(@NonNull Entry<Node, Holder> defaultEntry) {
+        CustomBuilderImpl(@NonNull BaseActivity activity, @NonNull Entry<Node, Holder> defaultEntry) {
+            this.activity = activity;
             this.defaultEntry = defaultEntry;
         }
 
@@ -281,7 +291,7 @@ public class CustomMarkwonAdapter extends MarkwonAdapter {
                 reducer = MarkwonReducer.directChildren();
             }
 
-            return new CustomMarkwonAdapter(entries, defaultEntry, reducer);
+            return new CustomMarkwonAdapter(activity, entries, defaultEntry, reducer);
         }
     }
 }

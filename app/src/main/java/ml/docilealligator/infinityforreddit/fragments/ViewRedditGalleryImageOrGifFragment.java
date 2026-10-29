@@ -1,8 +1,11 @@
 package ml.docilealligator.infinityforreddit.fragments;
 
 import android.Manifest;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -11,6 +14,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.os.PersistableBundle;
 import android.text.TextUtils;
 import android.text.util.Linkify;
 import android.view.LayoutInflater;
@@ -26,6 +31,7 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.RequestManager;
@@ -40,28 +46,31 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView;
 import com.github.piasy.biv.BigImageViewer;
 import com.github.piasy.biv.loader.ImageLoader;
 import com.github.piasy.biv.loader.glide.GlideImageLoader;
-import com.github.piasy.biv.view.GlideImageViewFactory;
 
 import java.io.File;
 import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 
 import me.saket.bettermovementmethod.BetterLinkMovementMethod;
 import ml.docilealligator.infinityforreddit.BuildConfig;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.SetAsWallpaperCallback;
+import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy;
 import ml.docilealligator.infinityforreddit.activities.ViewRedditGalleryActivity;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveBitmapImageToFile;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveGIFToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.CopyTextBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.UrlMenuBottomSheetFragment;
+import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewRedditGalleryImageOrGifBinding;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
+import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
+import ml.docilealligator.infinityforreddit.viewmodels.ViewGalleryViewModel;
 
 public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
@@ -73,6 +82,9 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     private static final int PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE = 0;
 
     @Inject
+    @Named("default")
+    SharedPreferences mSharedPreferences;
+    @Inject
     Executor mExecutor;
 
     private ViewRedditGalleryActivity activity;
@@ -83,7 +95,9 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     private boolean isDownloading = false;
     private boolean isUseBottomCaption = false;
     private boolean isFallback = false;
+    private Handler handler;
     private FragmentViewRedditGalleryImageOrGifBinding binding;
+    ViewGalleryViewModel viewGalleryViewModel;
 
     public ViewRedditGalleryImageOrGifFragment() {
         // Required empty public constructor
@@ -104,6 +118,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         subredditName = getArguments().getString(EXTRA_SUBREDDIT_NAME);
         isNsfw = getArguments().getBoolean(EXTRA_IS_NSFW, false);
         glide = Glide.with(activity);
+        handler = new Handler(Looper.getMainLooper());
 
         if (activity.typeface != null) {
             binding.titleTextViewViewRedditGalleryImageOrGifFragment.setTypeface(activity.typeface);
@@ -111,7 +126,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
             binding.captionUrlTextViewViewRedditGalleryImageOrGifFragment.setTypeface(activity.typeface);
         }
 
-        binding.imageViewViewRedditGalleryImageOrGifFragment.setImageViewFactory(new GlideImageViewFactory());
+        binding.imageViewViewRedditGalleryImageOrGifFragment.setImageViewFactory(new GlideGifImageViewFactory(new SaveMemoryCenterInisdeDownsampleStrategy(Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.POST_FEED_MAX_RESOLUTION, "5000000")))));
 
         binding.imageViewViewRedditGalleryImageOrGifFragment.setImageLoaderCallback(new ImageLoader.Callback() {
             @Override
@@ -288,6 +303,20 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
             binding.captionLayoutViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
         }
 
+        viewGalleryViewModel = new ViewModelProvider(requireActivity()).get(ViewGalleryViewModel.class);
+        viewGalleryViewModel.getInsets().observe(getViewLifecycleOwner(), insets -> {
+            ViewGroup.LayoutParams lp = binding.bottomNavigationViewRedditGalleryImageOrGifFragment.getLayoutParams();
+            if (lp instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) lp;
+
+                marginParams.bottomMargin = insets.bottom;
+                marginParams.setMarginStart(insets.left);
+                marginParams.setMarginEnd(insets.right);
+
+                binding.bottomNavigationViewRedditGalleryImageOrGifFragment.setLayoutParams(marginParams);
+            }
+        });
+
         return binding.getRoot();
     }
 
@@ -309,8 +338,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     private void loadImage() {
         if (isFallback) {
             binding.imageViewViewRedditGalleryImageOrGifFragment.showImage(Uri.parse(media.fallbackUrl));
-        }
-        else{
+        } else {
             binding.imageViewViewRedditGalleryImageOrGifFragment.showImage(Uri.parse(media.url));
         }
     }
@@ -373,13 +401,17 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     private void download() {
         isDownloading = false;
 
-        Intent intent = new Intent(activity, DownloadMediaService.class);
-        intent.putExtra(DownloadMediaService.EXTRA_URL, media.hasFallback() ? media.fallbackUrl : media.url); // Retrieve original instead of the one additionally compressed by reddit
-        intent.putExtra(DownloadMediaService.EXTRA_MEDIA_TYPE, media.mediaType == Post.Gallery.TYPE_GIF ? DownloadMediaService.EXTRA_MEDIA_TYPE_GIF: DownloadMediaService.EXTRA_MEDIA_TYPE_IMAGE);
-        intent.putExtra(DownloadMediaService.EXTRA_FILE_NAME, media.fileName);
-        intent.putExtra(DownloadMediaService.EXTRA_SUBREDDIT_NAME, subredditName);
-        intent.putExtra(DownloadMediaService.EXTRA_IS_NSFW, isNsfw);
-        ContextCompat.startForegroundService(activity, intent);
+        PersistableBundle extras = new PersistableBundle();
+        extras.putString(DownloadMediaService.EXTRA_URL, media.hasFallback() ? media.fallbackUrl : media.url); // Retrieve original instead of the one additionally compressed by reddit
+        extras.putInt(DownloadMediaService.EXTRA_MEDIA_TYPE, media.mediaType == Post.Gallery.TYPE_GIF ? DownloadMediaService.EXTRA_MEDIA_TYPE_GIF: DownloadMediaService.EXTRA_MEDIA_TYPE_IMAGE);
+        extras.putString(DownloadMediaService.EXTRA_FILE_NAME, media.fileName);
+        extras.putString(DownloadMediaService.EXTRA_SUBREDDIT_NAME, subredditName);
+        extras.putInt(DownloadMediaService.EXTRA_IS_NSFW, isNsfw ? 1 : 0);
+
+        //TODO: contentEstimatedBytes
+        JobInfo jobInfo = DownloadMediaService.constructJobInfo(activity, 5000000, extras);
+        ((JobScheduler) activity.getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
+
         Toast.makeText(activity, R.string.download_started, Toast.LENGTH_SHORT).show();
     }
 
@@ -389,9 +421,10 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         glide.asBitmap().load(media.hasFallback() ? media.fallbackUrl : media.url).into(new CustomTarget<Bitmap>() {
             @Override
             public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                if (activity.getExternalCacheDir() != null) {
+                File cacheDir = Utils.getCacheDir(activity);
+                if (cacheDir != null) {
                     Toast.makeText(activity, R.string.save_image_first, Toast.LENGTH_SHORT).show();
-                    SaveBitmapImageToFile.SaveBitmapImageToFile(mExecutor, new Handler(), resource, activity.getExternalCacheDir().getPath(),
+                    SaveBitmapImageToFile.saveBitmapImageToFile(mExecutor, handler, resource, cacheDir.getPath(),
                             media.fileName,
                             new SaveBitmapImageToFile.SaveBitmapImageToFileListener() {
                                 @Override
@@ -427,17 +460,18 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
     private void shareGif() {
         Toast.makeText(activity, R.string.save_gif_first, Toast.LENGTH_SHORT).show();
-        glide.asGif().load(media.url).listener(new RequestListener<GifDrawable>() {
+        glide.asGif().load(media.url).listener(new RequestListener<>() {
             @Override
-            public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<GifDrawable> target, boolean isFirstResource) {
+            public boolean onLoadFailed(@Nullable GlideException e, Object model, @NonNull Target<GifDrawable> target, boolean isFirstResource) {
                 return false;
             }
 
             @Override
             public boolean onResourceReady(GifDrawable resource, Object model, Target<GifDrawable> target, DataSource dataSource, boolean isFirstResource) {
-                if (activity.getExternalCacheDir() != null) {
-                    SaveGIFToFile.saveGifToFile(mExecutor, new Handler(), resource, activity.getExternalCacheDir().getPath(), media.fileName,
-                            new SaveGIFToFile.SaveGIFToFileAsyncTaskListener() {
+                File cacheDir = Utils.getCacheDir(activity);
+                if (cacheDir != null) {
+                    SaveGIFToFile.saveGifToFile(mExecutor, handler, resource, cacheDir.getPath(), media.fileName,
+                            new SaveGIFToFile.SaveGIFToFileListener() {
                                 @Override
                                 public void saveSuccess(File imageFile) {
                                     Uri uri = FileProvider.getUriForFile(activity,
@@ -474,7 +508,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
                 setAsWallpaperBottomSheetFragment.setArguments(bundle);
                 setAsWallpaperBottomSheetFragment.show(activity.getSupportFragmentManager(), setAsWallpaperBottomSheetFragment.getTag());
             } else {
-                ((SetAsWallpaperCallback) activity).setToBoth(activity.getCurrentPagePosition());
+                activity.setToBoth(activity.getCurrentPagePosition());
             }
         }
     }

@@ -1,8 +1,8 @@
 package ml.docilealligator.infinityforreddit.adapters;
 
-import android.content.Intent;
 import android.os.Handler;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 
@@ -19,11 +19,10 @@ import java.util.concurrent.Executor;
 
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import me.zhanghai.android.fastscroll.PopupTextProvider;
-import ml.docilealligator.infinityforreddit.FavoriteThing;
+import ml.docilealligator.infinityforreddit.thing.FavoriteThing;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
-import ml.docilealligator.infinityforreddit.activities.ViewUserDetailActivity;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.databinding.ItemFavoriteThingDividerBinding;
 import ml.docilealligator.infinityforreddit.databinding.ItemSubscribedThingBinding;
@@ -47,11 +46,13 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
     private final RequestManager glide;
     private final int mPrimaryTextColor;
     private final int mSecondaryTextColor;
+    private final ItemOnClickListener itemOnClickListener;
 
     public FollowedUsersRecyclerViewAdapter(BaseActivity activity, Executor executor, Retrofit oauthRetrofit,
                                             RedditDataRoomDatabase redditDataRoomDatabase,
                                             CustomThemeWrapper customThemeWrapper,
-                                            @Nullable String accessToken, @NonNull String accountName) {
+                                            @Nullable String accessToken, @NonNull String accountName,
+                                            ItemOnClickListener itemOnClickListener) {
         mActivity = activity;
         mExecutor = executor;
         mOauthRetrofit = oauthRetrofit;
@@ -61,6 +62,7 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
         glide = Glide.with(activity);
         mPrimaryTextColor = customThemeWrapper.getPrimaryTextColor();
         mSecondaryTextColor = customThemeWrapper.getSecondaryTextColor();
+        this.itemOnClickListener = itemOnClickListener;
     }
 
     @Override
@@ -177,10 +179,10 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
 
     @NonNull
     @Override
-    public String getPopupText(int position) {
+    public CharSequence getPopupText(@NonNull View view, int position) {
         switch (getItemViewType(position)) {
             case VIEW_TYPE_USER:
-                int offset = (mFavoriteSubscribedUserData != null && mFavoriteSubscribedUserData.size() > 0) ?
+                int offset = (mFavoriteSubscribedUserData != null && !mFavoriteSubscribedUserData.isEmpty()) ?
                         mFavoriteSubscribedUserData.size() + 2 : 0;
                 return mSubscribedUserData.get(position - offset).getName().substring(0, 1).toUpperCase();
             case VIEW_TYPE_FAVORITE_USER:
@@ -204,9 +206,7 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
             itemView.setOnClickListener(view -> {
                 int position = getBindingAdapterPosition() - 1;
                 if(position >= 0 && mFavoriteSubscribedUserData.size() > position) {
-                    Intent intent = new Intent(mActivity, ViewUserDetailActivity.class);
-                    intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, mFavoriteSubscribedUserData.get(position).getName());
-                    mActivity.startActivity(intent);
+                    itemOnClickListener.onClick(mFavoriteSubscribedUserData.get(position));
                 }
             });
 
@@ -287,9 +287,7 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
                         mFavoriteSubscribedUserData.size() + 2 : 0;
                 int position = getBindingAdapterPosition() - offset;
                 if(position >= 0 && mSubscribedUserData.size() > position) {
-                    Intent intent = new Intent(mActivity, ViewUserDetailActivity.class);
-                    intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, mSubscribedUserData.get(position).getName());
-                    mActivity.startActivity(intent);
+                    itemOnClickListener.onClick(mSubscribedUserData.get(position));
                 }
             });
 
@@ -383,5 +381,9 @@ public class FollowedUsersRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
             binding.dividerTextViewItemFavoriteThingDivider.setText(R.string.all);
             binding.dividerTextViewItemFavoriteThingDivider.setTextColor(mSecondaryTextColor);
         }
+    }
+
+    public interface ItemOnClickListener {
+        void onClick(SubscribedUserData subscribedUserData);
     }
 }

@@ -9,6 +9,9 @@ import androidx.room.Entity;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+
 @Entity(tableName = "accounts")
 public class Account implements Parcelable {
     public static final String ANONYMOUS_ACCOUNT = "-";
@@ -30,6 +33,8 @@ public class Account implements Parcelable {
     private final String code;
     @ColumnInfo(name = "is_current_user")
     private final boolean isCurrentUser;
+    @ColumnInfo(name = "is_mod")
+    private final boolean isMod;
 
     @Ignore
     protected Account(Parcel in) {
@@ -41,6 +46,7 @@ public class Account implements Parcelable {
         refreshToken = in.readString();
         code = in.readString();
         isCurrentUser = in.readByte() != 0;
+        isMod = in.readByte() != 0;
     }
 
     public static final Creator<Account> CREATOR = new Creator<Account>() {
@@ -57,11 +63,11 @@ public class Account implements Parcelable {
 
     @Ignore
     public static Account getAnonymousAccount() {
-        return new Account(Account.ANONYMOUS_ACCOUNT, null, null, null, null, null, 0, false);
+        return new Account(Account.ANONYMOUS_ACCOUNT, null, null, null, null, null, 0, false, false);
     }
 
     public Account(@NonNull String accountName, String accessToken, String refreshToken, String code,
-                   String profileImageUrl, String bannerImageUrl, int karma, boolean isCurrentUser) {
+                   String profileImageUrl, String bannerImageUrl, int karma, boolean isCurrentUser, boolean isMod) {
         this.accountName = accountName;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
@@ -70,6 +76,7 @@ public class Account implements Parcelable {
         this.bannerImageUrl = bannerImageUrl;
         this.karma = karma;
         this.isCurrentUser = isCurrentUser;
+        this.isMod = isMod;
     }
 
     @NonNull
@@ -109,6 +116,10 @@ public class Account implements Parcelable {
         return isCurrentUser;
     }
 
+    public boolean isMod() {
+        return isMod;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -124,5 +135,14 @@ public class Account implements Parcelable {
         dest.writeString(refreshToken);
         dest.writeString(code);
         dest.writeByte((byte) (isCurrentUser ? 1 : 0));
+        dest.writeByte((byte) (isMod ? 1 : 0));
+    }
+
+    public String getJSONModel() {
+        return new Gson().toJson(this);
+    }
+
+    public static Account fromJson(String json) throws JsonParseException {
+        return new Gson().fromJson(json, Account.class);
     }
 }

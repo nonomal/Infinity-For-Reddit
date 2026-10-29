@@ -30,6 +30,7 @@ import com.bumptech.glide.request.RequestOptions;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
@@ -40,9 +41,6 @@ import io.noties.markwon.MarkwonPlugin;
 import io.noties.markwon.core.MarkwonTheme;
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.SaveThing;
-import ml.docilealligator.infinityforreddit.SortType;
-import ml.docilealligator.infinityforreddit.VoteThing;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.activities.CommentActivity;
@@ -70,13 +68,17 @@ import ml.docilealligator.infinityforreddit.databinding.ItemLoadMoreCommentsPlac
 import ml.docilealligator.infinityforreddit.databinding.ItemNoCommentPlaceholderBinding;
 import ml.docilealligator.infinityforreddit.fragments.ViewPostDetailFragment;
 import ml.docilealligator.infinityforreddit.markdown.CustomMarkwonAdapter;
-import ml.docilealligator.infinityforreddit.markdown.EmoteCloseBracketInlineProcessor;
-import ml.docilealligator.infinityforreddit.markdown.EmotePlugin;
+import ml.docilealligator.infinityforreddit.markdown.emote.EmoteCloseBracketInlineProcessor;
+import ml.docilealligator.infinityforreddit.markdown.emote.EmotePlugin;
 import ml.docilealligator.infinityforreddit.markdown.EvenBetterLinkMovementMethod;
-import ml.docilealligator.infinityforreddit.markdown.ImageAndGifEntry;
-import ml.docilealligator.infinityforreddit.markdown.ImageAndGifPlugin;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifEntry;
+import ml.docilealligator.infinityforreddit.markdown.imageandgif.ImageAndGifPlugin;
 import ml.docilealligator.infinityforreddit.markdown.MarkdownUtils;
 import ml.docilealligator.infinityforreddit.post.Post;
+import ml.docilealligator.infinityforreddit.thing.SaveThing;
+import ml.docilealligator.infinityforreddit.thing.SortType;
+import ml.docilealligator.infinityforreddit.thing.VoteThing;
+import ml.docilealligator.infinityforreddit.user.UserProfileImagesBatchLoader;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
@@ -177,7 +179,7 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         mActivity = activity;
         mFragment = fragment;
         mExecutor = executor;
-        mRetrofit =
+        mRetrofit = retrofit;
         mOauthRetrofit = oauthRetrofit;
         mAccessToken = accessToken;
         mAccountName = accountName;
@@ -220,21 +222,23 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
             return true;
         };
         mEmoteCloseBracketInlineProcessor = new EmoteCloseBracketInlineProcessor();
-        mEmotePlugin = EmotePlugin.create(activity, mediaMetadata -> {
-            Intent intent = new Intent(activity, ViewImageOrGifActivity.class);
-            if (mediaMetadata.isGIF) {
-                intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mediaMetadata.original.url);
-            } else {
-                intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mediaMetadata.original.url);
-            }
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, post.isNSFW());
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, post.getSubredditName());
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mediaMetadata.fileName);
-            if (canStartActivity) {
-                canStartActivity = false;
-                activity.startActivity(intent);
-            }
-        });
+        mEmotePlugin = EmotePlugin.create(activity,
+                Integer.parseInt(sharedPreferences.getString(SharedPreferencesUtils.EMBEDDED_MEDIA_TYPE, "15")),
+                mediaMetadata -> {
+                    Intent intent = new Intent(activity, ViewImageOrGifActivity.class);
+                    if (mediaMetadata.isGIF) {
+                        intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mediaMetadata.original.url);
+                    } else {
+                        intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mediaMetadata.original.url);
+                    }
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, post.isNSFW());
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, post.getSubredditName());
+                    intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, mediaMetadata.fileName);
+                    if (canStartActivity) {
+                        canStartActivity = false;
+                        activity.startActivity(intent);
+                    }
+                });
         mImageAndGifPlugin = new ImageAndGifPlugin();
         mCommentMarkwon = MarkdownUtils.createFullRedditMarkwon(mActivity,
                 miscPlugin, mEmoteCloseBracketInlineProcessor, mEmotePlugin, mImageAndGifPlugin, mCommentTextColor,
@@ -244,7 +248,7 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         boolean doNotBlurNsfwInNsfwSubreddits = nsfwAndSpoilerSharedPreferences.getBoolean((mAccountName.equals(Account.ANONYMOUS_ACCOUNT) ? "" : mAccountName) + SharedPreferencesUtils.DO_NOT_BLUR_NSFW_IN_NSFW_SUBREDDITS, false);
         boolean needBlurSpoiler = nsfwAndSpoilerSharedPreferences.getBoolean((mAccountName.equals(Account.ANONYMOUS_ACCOUNT) ? "" : mAccountName) + SharedPreferencesUtils.BLUR_SPOILER_BASE, false);
         boolean blurImage = (post.isNSFW() && needBlurNsfw && !(doNotBlurNsfwInNsfwSubreddits && mFragment != null && mFragment.getIsNsfwSubreddit())) || (post.isSpoiler() && needBlurSpoiler);
-        mImageAndGifEntry = new ImageAndGifEntry(activity, mGlide, blurImage,
+        mImageAndGifEntry = new ImageAndGifEntry(activity, mGlide, Integer.parseInt(sharedPreferences.getString(SharedPreferencesUtils.EMBEDDED_MEDIA_TYPE, "15")), blurImage,
                 mediaMetadata -> {
                     Intent intent = new Intent(activity, ViewImageOrGifActivity.class);
                     if (mediaMetadata.isGIF) {
@@ -356,7 +360,8 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
 
             Comment comment = mVisibleComments.get(position - 1);
             if (comment.getPlaceholderType() == Comment.NOT_PLACEHOLDER) {
-                if (mFullyCollapseComment && !comment.isExpanded() && comment.hasExpandedBefore()) {
+                if ((mFullyCollapseComment && !comment.isExpanded() && comment.hasExpandedBefore())
+                        || (comment.isFilteredOut() && !comment.hasExpandedBefore())) {
                     return VIEW_TYPE_COMMENT_FULLY_COLLAPSED;
                 }
                 return VIEW_TYPE_COMMENT;
@@ -374,7 +379,8 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
 
             Comment comment = mVisibleComments.get(position);
             if (comment.getPlaceholderType() == Comment.NOT_PLACEHOLDER) {
-                if (mFullyCollapseComment && !comment.isExpanded() && comment.hasExpandedBefore()) {
+                if ((mFullyCollapseComment && !comment.isExpanded() && comment.hasExpandedBefore())
+                        || (comment.isFilteredOut() && !comment.hasExpandedBefore())) {
                     return VIEW_TYPE_COMMENT_FULLY_COLLAPSED;
                 }
                 return VIEW_TYPE_COMMENT;
@@ -446,27 +452,33 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
                             currentUserDrawable, null, null, null);
                 }
 
-                if (comment.getAuthorIconUrl() == null) {
-                    mFragment.loadIcon(comment.getAuthor(), (authorName, iconUrl) -> {
-                        if (authorName.equals(comment.getAuthor())) {
-                            comment.setAuthorIconUrl(iconUrl);
-                        }
+                if (mShowAuthorAvatar) {
+                    if (comment.getAuthorIconUrl() == null) {
+                        int startIndex = translatePositionToCommentIndex(position);
+                        if (startIndex >= 0) {
+                            List<Comment> commentBatch = mVisibleComments.subList(startIndex, Math.min(mVisibleComments.size(), UserProfileImagesBatchLoader.BATCH_SIZE + startIndex));
+                            mFragment.loadIcon(commentBatch, (authorFullName, iconUrl) -> {
+                                if (authorFullName.equals(comment.getAuthorFullName())) {
+                                    comment.setAuthorIconUrl(iconUrl);
+                                }
 
-                        Comment currentComment = getCurrentComment(holder);
-                        if (currentComment != null && authorName.equals(currentComment.getAuthor())) {
-                            mGlide.load(iconUrl)
-                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
-                                    .error(mGlide.load(R.drawable.subreddit_default_icon)
-                                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
-                                    .into(((CommentBaseViewHolder) holder).authorIconImageView);
+                                Comment currentComment = getCurrentComment(holder);
+                                if (currentComment != null && authorFullName.equals(currentComment.getAuthorFullName())) {
+                                    mGlide.load(iconUrl)
+                                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
+                                            .error(mGlide.load(R.drawable.subreddit_default_icon)
+                                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
+                                            .into(((CommentBaseViewHolder) holder).authorIconImageView);
+                                }
+                            });
                         }
-                    });
-                } else {
-                    mGlide.load(comment.getAuthorIconUrl())
-                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
-                            .error(mGlide.load(R.drawable.subreddit_default_icon)
-                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
-                            .into(((CommentBaseViewHolder) holder).authorIconImageView);
+                    } else {
+                        mGlide.load(comment.getAuthorIconUrl())
+                                .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
+                                .error(mGlide.load(R.drawable.subreddit_default_icon)
+                                        .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
+                                .into(((CommentBaseViewHolder) holder).authorIconImageView);
+                    }
                 }
 
                 if (mShowElapsedTime) {
@@ -560,7 +572,7 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
                     ((CommentBaseViewHolder) holder).downvoteButton.setIconTint(ColorStateList.valueOf(mVoteAndReplyUnavailableVoteButtonColor));
                 }
 
-                if (mPost.isLocked()) {
+                if (mPost.isLocked() || comment.isLocked()) {
                     ((CommentBaseViewHolder) holder).replyButton.setIconTint(ColorStateList.valueOf(mVoteAndReplyUnavailableVoteButtonColor));
                 }
 
@@ -587,27 +599,33 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
                 String authorWithPrefix = "u/" + comment.getAuthor();
                 ((CommentFullyCollapsedViewHolder) holder).binding.userNameTextViewItemCommentFullyCollapsed.setText(authorWithPrefix);
 
-                if (comment.getAuthorIconUrl() == null) {
-                    mFragment.loadIcon(comment.getAuthor(), (authorName, iconUrl) -> {
-                        if (authorName.equals(comment.getAuthor())) {
-                            comment.setAuthorIconUrl(iconUrl);
-                        }
+                if (mShowAuthorAvatar) {
+                    if (comment.getAuthorIconUrl() == null) {
+                        int startIndex = translatePositionToCommentIndex(position);
+                        if (startIndex >= 0) {
+                            List<Comment> commentBatch = mVisibleComments.subList(startIndex, Math.min(mVisibleComments.size(), UserProfileImagesBatchLoader.BATCH_SIZE + startIndex));
+                            mFragment.loadIcon(commentBatch, (authorFullName, iconUrl) -> {
+                                if (authorFullName.equals(comment.getAuthorFullName())) {
+                                    comment.setAuthorIconUrl(iconUrl);
+                                }
 
-                        Comment currentComment = getCurrentComment(holder);
-                        if (currentComment != null && authorName.equals(currentComment.getAuthor())) {
-                            mGlide.load(iconUrl)
-                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
-                                    .error(mGlide.load(R.drawable.subreddit_default_icon)
-                                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
-                                    .into(((CommentFullyCollapsedViewHolder) holder).binding.authorIconImageViewItemCommentFullyCollapsed);
+                                Comment currentComment = getCurrentComment(holder);
+                                if (currentComment != null && authorFullName.equals(currentComment.getAuthorFullName())) {
+                                    mGlide.load(iconUrl)
+                                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
+                                            .error(mGlide.load(R.drawable.subreddit_default_icon)
+                                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
+                                            .into(((CommentFullyCollapsedViewHolder) holder).binding.authorIconImageViewItemCommentFullyCollapsed);
+                                }
+                            });
                         }
-                    });
-                } else {
-                    mGlide.load(comment.getAuthorIconUrl())
-                            .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
-                            .error(mGlide.load(R.drawable.subreddit_default_icon)
-                                    .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
-                            .into(((CommentFullyCollapsedViewHolder) holder).binding.authorIconImageViewItemCommentFullyCollapsed);
+                    } else {
+                        mGlide.load(comment.getAuthorIconUrl())
+                                .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0)))
+                                .error(mGlide.load(R.drawable.subreddit_default_icon)
+                                        .apply(RequestOptions.bitmapTransform(new RoundedCornersTransformation(72, 0))))
+                                .into(((CommentFullyCollapsedViewHolder) holder).binding.authorIconImageViewItemCommentFullyCollapsed);
+                    }
                 }
 
                 if (comment.getChildCount() > 0) {
@@ -843,6 +861,20 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         return null;
     }
 
+    private int translatePositionToCommentIndex(int position) {
+        if (mIsSingleCommentThreadMode) {
+            if (position - 1 >= 0 && position - 1 < mVisibleComments.size()) {
+                return position - 1;
+            }
+        } else {
+            if (position >= 0 && position < mVisibleComments.size()) {
+                return position;
+            }
+        }
+
+        return -1;
+    }
+
     private int getParentPosition(int position) {
         if (position >= 0 && position < mVisibleComments.size()) {
             int childDepth = mVisibleComments.get(position).getDepth();
@@ -1016,7 +1048,14 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
 
     public void setSingleComment(String singleCommentId, boolean isSingleCommentThreadMode) {
         mSingleCommentId = singleCommentId;
-        mIsSingleCommentThreadMode = isSingleCommentThreadMode;
+        if (mIsSingleCommentThreadMode != isSingleCommentThreadMode) {
+            mIsSingleCommentThreadMode = isSingleCommentThreadMode;
+            if (isSingleCommentThreadMode) {
+                notifyItemInserted(0);
+            } else {
+                notifyItemRemoved(0);
+            }
+        }
     }
 
     public ArrayList<Comment> getVisibleComments() {
@@ -1048,18 +1087,30 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         }
     }
 
-    public void editComment(String commentAuthor, String commentContentMarkdown, int position) {
-        if (commentAuthor != null) {
-            mVisibleComments.get(position).setAuthor(commentAuthor);
+    public void editComment(Comment comment, int position) {
+        if (position < mVisibleComments.size() && position >= 0) {
+            Comment oldComment = mVisibleComments.get(position);
+            if (oldComment.getId().equals(comment.getId())) {
+                oldComment.setCommentMarkdown(comment.getCommentMarkdown());
+                oldComment.setMediaMetadataMap(comment.getMediaMetadataMap());
+
+                if (mIsSingleCommentThreadMode) {
+                    notifyItemChanged(position + 1);
+                } else {
+                    notifyItemChanged(position);
+                }
+            }
         }
+    }
 
-        mVisibleComments.get(position).setSubmittedByAuthor(mVisibleComments.get(position).isSubmitter());
-
-        mVisibleComments.get(position).setCommentMarkdown(commentContentMarkdown);
-        if (mIsSingleCommentThreadMode) {
-            notifyItemChanged(position + 1);
-        } else {
-            notifyItemChanged(position);
+    public void editComment(String commentContentMarkdown, int position) {
+        if (position < mVisibleComments.size() && position >= 0) {
+            mVisibleComments.get(position).setCommentMarkdown(commentContentMarkdown);
+            if (mIsSingleCommentThreadMode) {
+                notifyItemChanged(position + 1);
+            } else {
+                notifyItemChanged(position);
+            }
         }
     }
 
@@ -1084,12 +1135,55 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         }
     }
 
+    public void toggleReplyNotifications(String fullName, int position) {
+        if (mVisibleComments != null && position >= 0 && position < mVisibleComments.size()) {
+            if (mVisibleComments.get(position).getFullName().equals(fullName)) {
+                mVisibleComments.get(position).toggleSendReplies();
+            }
+        }
+        //TODO The comment's position may change
+    }
+
+    public void updateModdedStatus(Comment comment, int position) {
+        Comment originalComment = getCurrentComment(position);
+        if (originalComment != null && originalComment.getFullName().equals(comment.getFullName())) {
+            originalComment.setApproved(comment.isApproved());
+            originalComment.setApprovedAtUTC(comment.getApprovedAtUTC());
+            originalComment.setApprovedBy(comment.getApprovedBy());
+            originalComment.setRemoved(comment.isRemoved(), comment.isSpam());
+            originalComment.setLocked(comment.isLocked());
+
+            if (mIsSingleCommentThreadMode) {
+                notifyItemChanged(position + 1);
+            } else {
+                notifyItemChanged(position);
+            }
+        } else {
+            for (int i = 0; i < mVisibleComments.size(); i++) {
+                Comment currentComment = mVisibleComments.get(i);
+                if (currentComment.getFullName().equals(comment.getFullName()) && currentComment.getPlaceholderType() == comment.getPlaceholderType()) {
+                    currentComment.setApproved(comment.isApproved());
+                    currentComment.setApprovedAtUTC(comment.getApprovedAtUTC());
+                    currentComment.setApprovedBy(comment.getApprovedBy());
+                    currentComment.setRemoved(comment.isRemoved(), comment.isSpam());
+                    currentComment.setLocked(comment.isLocked());
+
+                    if (mIsSingleCommentThreadMode) {
+                        notifyItemChanged(i + 1);
+                    } else {
+                        notifyItemChanged(i);
+                    }
+                }
+            }
+        }
+    }
+
     public int getNextParentCommentPosition(int currentPosition) {
         if (mVisibleComments != null && !mVisibleComments.isEmpty()) {
             if (mIsSingleCommentThreadMode) {
                 for (int i = currentPosition + 1; i - 1 < mVisibleComments.size() && i - 1 >= 0; i++) {
                     if (mVisibleComments.get(i - 1).getDepth() == 0) {
-                        return i;
+                        return i + 1;
                     }
                 }
             } else {
@@ -1108,12 +1202,31 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
             if (mIsSingleCommentThreadMode) {
                 for (int i = currentPosition - 1; i - 1 >= 0; i--) {
                     if (mVisibleComments.get(i - 1).getDepth() == 0) {
-                        return i;
+                        return i + 1;
                     }
                 }
             } else {
                 for (int i = currentPosition - 1; i >= 0; i--) {
                     if (mVisibleComments.get(i).getDepth() == 0) {
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    public int getParentCommentPosition(int currentPosition, int currentDepth) {
+        if (mVisibleComments != null && !mVisibleComments.isEmpty()) {
+            if (mIsSingleCommentThreadMode) {
+                for (int i = currentPosition - 1; i - 1 >= 0; i--) {
+                    if (mVisibleComments.get(i - 1).getDepth() == currentDepth - 1) {
+                        return i + 1;
+                    }
+                }
+            } else {
+                for (int i = currentPosition - 1; i >= 0; i--) {
+                    if (mVisibleComments.get(i).getDepth() == currentDepth - 1) {
                         return i;
                     }
                 }
@@ -1352,16 +1465,16 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
             LinearLayoutManagerBugFixed linearLayoutManager = new SwipeLockLinearLayoutManager(mActivity, new SwipeLockInterface() {
                 @Override
                 public void lockSwipe() {
-                    ((ViewPostDetailActivity) mActivity).lockSwipeRightToGoBack();
+                    mActivity.lockSwipeRightToGoBack();
                 }
 
                 @Override
                 public void unlockSwipe() {
-                    ((ViewPostDetailActivity) mActivity).unlockSwipeRightToGoBack();
+                    mActivity.unlockSwipeRightToGoBack();
                 }
             });
             commentMarkdownView.setLayoutManager(linearLayoutManager);
-            mMarkwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(mImageAndGifEntry);
+            mMarkwonAdapter = MarkdownUtils.createCustomTablesAndImagesAdapter(mActivity, mImageAndGifEntry);
             commentMarkdownView.setAdapter(mMarkwonAdapter);
 
             itemView.setBackgroundColor(mCommentBackgroundColor);
@@ -1405,12 +1518,10 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
                         bundle.putInt(CommentMoreBottomSheetFragment.EXTRA_POSITION, getBindingAdapterPosition());
                     }
                     bundle.putBoolean(CommentMoreBottomSheetFragment.EXTRA_IS_NSFW, mPost.isNSFW());
-                    if (comment.getDepth() >= mDepthThreshold) {
-                        bundle.putBoolean(CommentMoreBottomSheetFragment.EXTRA_SHOW_REPLY_AND_SAVE_OPTION, true);
-                    }
+                    bundle.putBoolean(CommentMoreBottomSheetFragment.EXTRA_SHOW_REPLY_OPTION, true);
                     CommentMoreBottomSheetFragment commentMoreBottomSheetFragment = new CommentMoreBottomSheetFragment();
                     commentMoreBottomSheetFragment.setArguments(bundle);
-                    commentMoreBottomSheetFragment.show(mActivity.getSupportFragmentManager(), commentMoreBottomSheetFragment.getTag());
+                    commentMoreBottomSheetFragment.show(mFragment.getChildFragmentManager(), commentMoreBottomSheetFragment.getTag());
                 }
             });
 
@@ -1432,6 +1543,11 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
 
                 Comment comment = getCurrentComment(this);
                 if (comment != null) {
+                    if (comment.isLocked()) {
+                        Toast.makeText(mActivity, R.string.locked_comment_reply_unavailable, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
                     Intent intent = new Intent(mActivity, CommentActivity.class);
                     intent.putExtra(CommentActivity.EXTRA_PARENT_DEPTH_KEY, comment.getDepth() + 1);
                     intent.putExtra(CommentActivity.EXTRA_COMMENT_PARENT_BODY_MARKDOWN_KEY, comment.getCommentMarkdown());
@@ -1708,8 +1824,10 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
                             mVisibleComments.addAll(commentPosition + 1, newList);
 
                             if (mIsSingleCommentThreadMode) {
+                                notifyItemChanged(commentPosition + 1);
                                 notifyItemRangeInserted(commentPosition + 2, newList.size());
                             } else {
+                                notifyItemChanged(commentPosition);
                                 notifyItemRangeInserted(commentPosition + 1, newList.size());
                             }
                             if (mAlwaysShowChildCommentCount && comment.getChildCount() > 0) {
@@ -1958,7 +2076,7 @@ public class CommentsRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerVi
         IsLoadingMoreCommentsViewHolder(@NonNull ItemCommentFooterLoadingBinding binding) {
             super(binding.getRoot());
             this.binding = binding;
-            binding.progressBarItemCommentFooterLoading.setIndeterminateTintList(ColorStateList.valueOf(mColorAccent));
+            binding.progressBarItemCommentFooterLoading.setIndicatorColor(mColorAccent);
         }
     }
 

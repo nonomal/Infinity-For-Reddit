@@ -56,8 +56,6 @@
     <string name="action_unhide_post">"Показати допис"</string>
     <string name="action_edit_post">"Змінити допис"</string>
     <string name="action_delete_post">"Видалити допис"</string>
-    <string name="action_mark_nsfw">"Позначити як НБДР"</string>
-    <string name="action_unmark_nsfw">"Забрати НБДР"</string>
     <string name="action_mark_spoiler">"Позначити як спойлер"</string>
     <string name="action_unmark_spoiler">"Забрати спойлер"</string>
     <string name="action_edit_flair">"Змінити личку"</string>
@@ -102,7 +100,6 @@
     <string name="load_messages_failed">"Помилка завантаження повідомлень.
 Натисніть, щоб повторити."</string>
     <string name="no_messages">"Порожньо"</string>
-    <string name="nsfw">"НБДР"</string>
 
     <!-- Fuzzy -->
     <string name="karma_info">"Карма: %1$d"</string>
@@ -144,7 +141,6 @@
     <string name="follow_failed">"Не вдалося стежити"</string>
     <string name="unfollowed">"Не відстежується"</string>
     <string name="unfollow_failed">"Не вдалося не відстежувати"</string>
-    <string name="content_description_banner_imageview">"Зображення банера сабредиту"</string>
     <string name="app_label">"Infinity"</string>
     <string name="search_hint">"Шукати все"</string>
     <string name="no_posts_no_lazy_mode">"Нема доступних дописів"</string>
@@ -274,10 +270,6 @@
     <string name="edit_success">"Успішно змінено"</string>
     <string name="delete_post_success">"Успішно видалено"</string>
     <string name="delete_post_failed">"Не вдалося видалити"</string>
-    <string name="mark_nsfw_success">"Успішно позначено як НБДР"</string>
-    <string name="mark_nsfw_failed">"Не вдалося позначити як НБДР"</string>
-    <string name="unmark_nsfw_success">"Успішно забрано позначку НБДР"</string>
-    <string name="unmark_nsfw_failed">"Не вдалося забрати позначку НБДР"</string>
     <string name="mark_spoiler_success">"Успішно позначено як спойлер"</string>
     <string name="mark_spoiler_failed">"Не вдалося позначити як спойлер"</string>
     <string name="unmark_spoiler_success">"Успішно забрано позначку спойлера"</string>
@@ -310,7 +302,6 @@
     <string name="settigns_video_title">"Відео"</string>
     <string name="settings_video_autoplay_title">"Самовідтворення відео"</string>
     <string name="settings_mute_autoplaying_videos_title">"Глушити самовідтворювані відео"</string>
-    <string name="settings_autoplay_nsfw_videos_title">"Самовідтворювати відео НБДР"</string>
     <string name="settings_start_autoplay_visible_area_offset_portrait_title">"Область видимості самовідтворюваного відео (портретна)"</string>
 
     <!-- Fuzzy -->
@@ -321,8 +312,6 @@
     <string name="settings_start_autoplay_visible_area_offset_landscape_summary">"Розпочинати самовідтворення відеозаписів, коли їх видно на %1$d%%"</string>
     <string name="settings_immersive_interface_title">"Заглиблений інтерфейс"</string>
     <string name="settings_immersive_interface_summary">"Не застосовувати для всіх сторінок"</string>
-    <string name="settings_immersive_interface_ignore_nav_bar_title">"Ігнорувати панель пересування в заглибленому інтерфейсі"</string>
-    <string name="settings_immersive_interface_ignore_nav_bar_summary">"Запобігати додатковим відступам на нижній панелі пересування"</string>
     <string name="settings_customize_tabs_in_main_page_title">"Пристосувати вкладки на основній сторінці"</string>
     <string name="settings_enable_bottom_app_bar_title">"Увімкнути нижнє пересування"</string>
     <string name="settings_category_post_and_comment_title">"Дописи і коментарі"</string>
@@ -330,7 +319,6 @@
     <string name="settings_volume_keys_navigate_comments_title">"Пересуватися коментарями в дописах клавішами гучності"</string>
     <string name="settings_volume_keys_navigate_posts_title">"Пересуватися дописами клавішами гучності"</string>
     <string name="settings_mute_video_title">"Глушити відео"</string>
-    <string name="settings_mute_nsfw_video_title">"Глушити відео НБДР"</string>
     <string name="settings_video_player_ignore_nav_bar_title">"Ігнорувати панель пересування у відео-програвачі"</string>
     <string name="settings_video_player_ignore_nav_bar_summary">"Не дозволяти відеоконтролеру мати додаткове поле"</string>
     <string name="settings_confirm_to_exit">"Підтверджувати вихід"</string>
@@ -365,8 +353,6 @@
     <string name="settings_font_size_title">"Розмір шрифту"</string>
     <string name="settings_title_font_size_title">"Розмір шрифту заголовка"</string>
     <string name="settings_content_font_size_title">"Розмір шрифту вмісту"</string>
-    <string name="settings_enable_nsfw_title">"Дозволити НБДР"</string>
-    <string name="settings_blur_nsfw_title">"Розмивати зображення НБДР"</string>
     <string name="settings_blur_spoiler_title">"Розмивати зображення спойлерів"</string>
     <string name="settings_about_master_title">"Про застосунок"</string>
     <string name="settings_acknowledgement_master_title">"Подяка"</string>
@@ -506,8 +492,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="delete_multi_reddit_success">"Вдало видалено"</string>
     <string name="delete_multi_reddit_failed">"Не вдалося видалити"</string>
     <string name="delete_multi_reddit_dialog_message">"Ви впевнені?"</string>
-    <string name="enable_nsfw">"Дозволити НБДР"</string>
-    <string name="disable_nsfw">"Заборонити НБДР"</string>
     <string name="cannot_save_image">"Не можливо зберегти зображення"</string>
     <string name="cannot_save_gif">"Не можливо зберегти gif"</string>
     <string name="cannot_get_storage">"Нема доступу до сховища програми"</string>
@@ -603,10 +587,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="theme_item_spoiler_background_color_detail">"Задіяно для: Тло позначки спойлера"</string>
     <string name="theme_item_spoiler_text_color">"Колір тексту спойлера"</string>
     <string name="theme_item_spoiler_text_color_detail">"Задіяно для: Колір тексту позначки спойлера"</string>
-    <string name="theme_item_nsfw_background_color">"Колір тла НБДР"</string>
-    <string name="theme_item_nsfw_background_color_detail">"Задіяно для: Тло позначки НБДР"</string>
-    <string name="theme_item_nsfw_text_color">"Колір тексту НБДР"</string>
-    <string name="theme_item_nsfw_text_color_detail">"Задіяно для: Колір тексту позначки НБДР"</string>
     <string name="theme_item_flair_background_color">"Колір тла лички"</string>
     <string name="theme_item_flair_background_color_detail">"Задіяно для: Тло лички"</string>
     <string name="theme_item_flair_text_color">"Колір тексту лички"</string>
@@ -780,7 +760,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="settings_number_of_columns_in_post_feed_title">"Кількість стовпців у стрічці дописів"</string>
     <string name="settings_number_of_columns_in_post_feed_portrait_title">"Портретна"</string>
     <string name="settings_number_of_columns_in_post_feed_landscape_title">"Альбомна"</string>
-    <string name="settings_nsfw_and_spoiler_title">"НБДР і спойлери"</string>
     <string name="settings_delete_all_legacy_settings_title">"Видалити всі успадковані налаштування"</string>
     <string name="restart_app_see_changes">"Перезапустіть застосунок, щоб зміни ввійшли в дію"</string>
     <string name="settings_tab_count">"Кількість вкладок"</string>
@@ -844,18 +823,12 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
 
     <!-- Fuzzy -->
     <string name="warning">"Попередження"</string>
-    <string name="this_is_a_nsfw_subreddit">"Це сабредит НБДР."</string>
-    <string name="this_user_has_nsfw_content">"У цього користувача є вміст НБДР"</string>
     <string name="dismiss">"Відхилити"</string>
     <string name="leave">"Залишити"</string>
     <string name="go_to_subreddit">"Перейти до сабредиту"</string>
     <string name="go_to_user">"Перейти до користувача"</string>
     <string name="go_to_thing_hint">"Назва"</string>
     <string name="random">"Випадкове"</string>
-    <string name="random_subreddit">"Випадковий сабредит"</string>
-    <string name="random_nsfw_subreddit">"Випадковий сабредит НБДР"</string>
-    <string name="random_post">"Випадковий допис"</string>
-    <string name="random_nsfw_post">"Випадковий допис НБДР"</string>
     <string name="fetch_random_thing_failed">"Спробуйте пізніше"</string>
     <string name="downloading">"Завантаження"</string>
     <string name="subreddit_filter_popular_and_all_activity_label">"r/all і r/popular"</string>
@@ -896,7 +869,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="settings_only_disable_preview_in_video_and_gif_posts_title">"Вимкнути передперегляд лише для відео і дописів Gif"</string>
     <string name="settings_enable_search_history_title">"Дозволити історію пошуку"</string>
     <string name="settings_post_history_title">"Історія дописів"</string>
-    <string name="settings_mark_posts_as_read_title">"Позначати дописи прочитаними"</string>
     <string name="settings_mark_posts_as_read_after_voting_title">"Позначати дописи прочитаними після голосування"</string>
     <string name="settings_mark_posts_as_read_on_scroll_title">"Позначати дописи прочитаними під час прокручування"</string>
     <string name="settings_hide_read_posts_automatically_title">"Ховати прочитані дописи автоматично"</string>
@@ -917,7 +889,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="delete_all_read_posts_success">"Усі прочитані дописи вдало видалено"</string>
     <string name="hide_read_posts">"Сховати прочитані дописи"</string>
     <string name="filter_posts">"Фільтр дописів"</string>
-    <string name="only_nsfw">"Лише НБДР"</string>
     <string name="only_spoiler">"Лише спойлер"</string>
     <string name="title_excludes_strings_hint">"Заголовок: виключати ключові слова (слово1,слово2)"</string>
     <string name="title_excludes_regex_hint">"Заголовок: не враховувати рег.вир."</string>
@@ -960,13 +931,10 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="settings_hide_the_number_of_comments">"Ховати кількість коментарів"</string>
     <string name="post_layout_gallery">"Вигляд галереї"</string>
     <string name="post_layout_card_2">"Картковий вигляд 2"</string>
-    <string name="have_trouble_login_title">"Є проблеми з входом"</string>
-    <string name="have_trouble_login_message">"Бажаєте спробувати інший спосіб входу?"</string>
     <string name="vote">"Оцінка"</string>
     <string name="action_share_link">"Поширити ланку"</string>
     <string name="action_copy_link">"Копіювати ланку"</string>
     <string name="action_add_to_post_filter">"Додати до фільтру дописів"</string>
-    <string name="settings_do_not_blur_nsfw_in_nsfw_subreddits_title">"Не розмивати зображення НБДР для сабредитів НБДР"</string>
     <string name="settings_show_avatar_on_the_right">"Показувати аватарку праворуч"</string>
     <string name="settings_backup_settings_title">"Резервне копіювання налаштувань"</string>
     <string name="settings_restore_settings_title">"Відновити налаштування"</string>
@@ -1032,7 +1000,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="settings_hide_post_flair">"Ховати лички дописів"</string>
     <string name="settings_crash_reports_title">"Звіти про збої"</string>
     <string name="settings_nsfw_and_spoiler_dangerous_group_title">"Небезпечно"</string>
-    <string name="settings_disable_nsfw_forever_title">"Заборонити НБДР назавжди"</string>
     <string name="settings_show_only_one_comment_level_indicator">"Показувати лише один показник рівня коментарів"</string>
     <string name="save_comment">"Зберегти"</string>
     <string name="unsave_comment">"Не зберігати"</string>
@@ -1041,11 +1008,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
 
     <!-- Fuzzy -->
     <string name="crash_reports_deleted">"Звіти про збої видалено"</string>
-
-    <!-- Fuzzy -->
-    <string name="disable_nsfw_forever_message">"Увімкнувши раз, НБДР буде вимкнено назавжди, не залежно від того ввімкнено параметр НБДР чи ні. І ця дія незворотна, єдиний спосіб увімкнути НБДР знову — очистити дані програми.
-
-Усе ще бажаєте ввімкнути це?"</string>
     <string name="reply">"Відповісти"</string>
     <string name="post_gallery_activity_label">"Допис галереї"</string>
     <string name="action_share_post_link">"Поширити ланку допису"</string>
@@ -1068,7 +1030,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="settings_more_tabs_show_multireddits_title">"Показувати мультиредити"</string>
     <string name="settings_collapse_reddit_section_title">"Згорнути розділ Reddit"</string>
     <string name="settings_video_player_automatic_landscape_orientation">"Автоматично перемикати відеопрогравач на альбомну орієнтацію"</string>
-    <string name="settings_remember_muting_option_in_post_feed">"Памʼятати параметр приглушення в стрічці дописів"</string>
     <string name="link_post_layout_auto">"Авто"</string>
     <string name="uploaded_images">"Відвантажені зображення"</string>
     <string name="select_image">"Вибрати зображення"</string>
@@ -1151,8 +1112,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="app_lock_timeout_24_hours">"24 години"</string>
     <string name="edit_profile_activity_label">"Змінити профіль"</string>
     <string name="action_contact_mods">"Моди контактів"</string>
-    <string name="settings_save_nsfw_media_in_different_folder_title">"Зберігати НБДР-медія в інше місце"</string>
-    <string name="settings_nsfw_download_location_title">"Місце завантаження НБДР"</string>
     <string name="fetch_streamable_video_failed">"Не вдалося отримати потоковий відеозапис"</string>
 
     <!-- EditProfileService Notification -->
@@ -1227,7 +1186,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="comment_karma">"Карма за коментарі:"</string>
     <string name="awarder_karma">"Карма за надання нагород:"</string>
     <string name="awardee_karma">"Карма за отримання нагород:"</string>
-    <string name="history_activity_label">"Історія"</string>
     <string name="history">"Історія"</string>
     <string name="settings_easier_to_watch_in_full_screen_title">"Легше дивитися на повному екрані"</string>
     <string name="clear_user_flair">"Очистити личку"</string>

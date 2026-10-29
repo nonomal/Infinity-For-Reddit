@@ -56,8 +56,6 @@
     <string name="action_unhide_post">"Reafișați postarea"</string>
     <string name="action_edit_post">"Editați postarea"</string>
     <string name="action_delete_post">"Ștergeți postarea"</string>
-    <string name="action_mark_nsfw">"Marcați NSFW"</string>
-    <string name="action_unmark_nsfw">"Anulați marcaj NSFW"</string>
     <string name="action_mark_spoiler">"Marcați spoiler"</string>
     <string name="action_unmark_spoiler">"Anulare marcaj spoiler"</string>
     <string name="action_edit_flair">"Modificați insigna"</string>
@@ -102,7 +100,6 @@ Apăsați pentru reîncercare."</string>
     <string name="load_messages_failed">"Eroare la încărcarea mesajelor.
 Apăsați pentru reîncercare."</string>
     <string name="no_messages">"Gol"</string>
-    <string name="nsfw">"NSFW"</string>
 
     <!-- Fuzzy -->
     <string name="karma_info">"Karma: %1$d"</string>
@@ -144,7 +141,6 @@ Apăsați pentru reîncercare."</string>
     <string name="follow_failed">"Urmărire eșuată"</string>
     <string name="unfollowed">"Urmărire anulată"</string>
     <string name="unfollow_failed">"Eșuare anulare urmărire"</string>
-    <string name="content_description_banner_imageview">"Banner subreddit"</string>
     <string name="app_label">"Infinity"</string>
     <string name="search_hint">"Căutați orice"</string>
     <string name="no_posts_no_lazy_mode">"Nicio postare disponibilă"</string>
@@ -272,10 +268,6 @@ Apăsați pentru reîncărcare."</string>
     <string name="edit_success">"Editare reușită"</string>
     <string name="delete_post_success">"Ștergere reușită"</string>
     <string name="delete_post_failed">"Ștergere eșuată"</string>
-    <string name="mark_nsfw_success">"Marcare NSFW reușită"</string>
-    <string name="mark_nsfw_failed">"Marcare NSFW eșuată"</string>
-    <string name="unmark_nsfw_success">"Anulare marcaj NSFW reușită"</string>
-    <string name="unmark_nsfw_failed">"Anulare marcaj NSFW eșuată"</string>
     <string name="mark_spoiler_success">"Marcare ca spoiler reușită"</string>
     <string name="mark_spoiler_failed">"Marcare ca spoiler eșuată"</string>
     <string name="unmark_spoiler_success">"Anulare marcaj spoiler reușită"</string>
@@ -308,7 +300,6 @@ Apăsați pentru reîncărcare."</string>
     <string name="settigns_video_title">"Video"</string>
     <string name="settings_video_autoplay_title">"Redare video automată"</string>
     <string name="settings_mute_autoplaying_videos_title">"Amuțirea videoclipurilor redate automat"</string>
-    <string name="settings_autoplay_nsfw_videos_title">"Redare video NSFW automată"</string>
     <string name="settings_start_autoplay_visible_area_offset_portrait_title">"Decalarea zonei de redare automată a videoclipurilor (portret)"</string>
 
     <!-- Fuzzy -->
@@ -319,8 +310,6 @@ Apăsați pentru reîncărcare."</string>
     <string name="settings_start_autoplay_visible_area_offset_landscape_summary">"Începeți redarea automată a videourilor atunci când sunt %1$,d%% vizibile"</string>
     <string name="settings_immersive_interface_title">"Interfață Imersivă"</string>
     <string name="settings_immersive_interface_summary">"Nu se aplică tuturor paginilor"</string>
-    <string name="settings_immersive_interface_ignore_nav_bar_title">"Ignorați bara de navigare în interfața imersivă"</string>
-    <string name="settings_immersive_interface_ignore_nav_bar_summary">"Împiedicați bara de navigare de jos din a avea padding suplimentar"</string>
     <string name="settings_customize_tabs_in_main_page_title">"Personalizați filele din pagina principală"</string>
     <string name="settings_enable_bottom_app_bar_title">"Activați navigarea din partea de jos"</string>
     <string name="settings_category_post_and_comment_title">"Postări și comentarii"</string>
@@ -328,7 +317,6 @@ Apăsați pentru reîncărcare."</string>
     <string name="settings_volume_keys_navigate_comments_title">"Utilizați tastele de volum pentru a naviga comentariile din postări"</string>
     <string name="settings_volume_keys_navigate_posts_title">"Utilizați tastele de volum pentru a naviga postările"</string>
     <string name="settings_mute_video_title">"Oprire sunet videoclipuri"</string>
-    <string name="settings_mute_nsfw_video_title">"Oprire sunet videoclipuri NSFW"</string>
     <string name="settings_video_player_ignore_nav_bar_title">"Ignorați bara de navigare în player-ul video"</string>
     <string name="settings_video_player_ignore_nav_bar_summary">"Împiedicați player-ul video din a avea margine suplimentară"</string>
     <string name="settings_confirm_to_exit">"Confirmare ieșire"</string>
@@ -363,8 +351,6 @@ Apăsați pentru reîncărcare."</string>
     <string name="settings_font_size_title">"Mărimea fontului"</string>
     <string name="settings_title_font_size_title">"Dimensiunea fontului de titlu"</string>
     <string name="settings_content_font_size_title">"Dimensiunea fontului de conținut"</string>
-    <string name="settings_enable_nsfw_title">"Activați NSFW"</string>
-    <string name="settings_blur_nsfw_title">"Estompare imagini NSFW"</string>
     <string name="settings_blur_spoiler_title">"Estompare imagini spoiler"</string>
     <string name="settings_about_master_title">"Despre"</string>
     <string name="settings_acknowledgement_master_title">"Recunoștință"</string>
@@ -502,8 +488,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="delete_multi_reddit_success">"Șters cu succes"</string>
     <string name="delete_multi_reddit_failed">"Ștergerea a eșuat"</string>
     <string name="delete_multi_reddit_dialog_message">"Sunteți sigur?"</string>
-    <string name="enable_nsfw">"Activați NSFW"</string>
-    <string name="disable_nsfw">"Dezactivați NSFW"</string>
     <string name="cannot_save_image">"Nu se poate salva imaginea"</string>
     <string name="cannot_save_gif">"Nu se poate salva gif-ul"</string>
     <string name="cannot_get_storage">"Nu se poate accesa memoria aplicației"</string>
@@ -599,10 +583,6 @@ https://play.google.com/store/apps/details?id=ml.docilealligator.infinityforredd
     <string name="theme_item_spoiler_background_color_detail">"Aplicat pe: Fundalul marcajului spoiler"</string>
     <string name="theme_item_spoiler_text_color">"Culoarea Textului Spoiler"</string>
     <string name="theme_item_spoiler_text_color_detail">"Aplicat pe: Culoarea textului marcat spoiler"</string>
-    <string name="theme_item_nsfw_background_color">"Culoarea de Fundal NSFW"</string>
-    <string name="theme_item_nsfw_background_color_detail">"Aplicat pe: Fundalul marcajului NSFW"</string>
-    <string name="theme_item_nsfw_text_color">"Culoarea Textului NSFW"</string>
-    <string name="theme_item_nsfw_text_color_detail">"Aplicat pe: Culoarea textului marcat NSFW"</string>
     <string name="theme_item_flair_background_color">"Culoarea de Fundal a Insignei"</string>
     <string name="theme_item_flair_background_color_detail">"Aplicat pe: Fundalul insignei"</string>
     <string name="theme_item_flair_text_color">"Culoarea Textului Insignei"</string>
@@ -776,7 +756,6 @@ Exemplu: parolata:123456"</string>
     <string name="settings_number_of_columns_in_post_feed_title">"Numărul de Coloane în Fluxul de Postări"</string>
     <string name="settings_number_of_columns_in_post_feed_portrait_title">"Portret"</string>
     <string name="settings_number_of_columns_in_post_feed_landscape_title">"Peisaj"</string>
-    <string name="settings_nsfw_and_spoiler_title">"NSFW și Spoiler"</string>
     <string name="settings_delete_all_legacy_settings_title">"Șterge Toate Setările Vechi"</string>
     <string name="restart_app_see_changes">"Repornește aplicația pentru a vedea modificările"</string>
     <string name="settings_tab_count">"Număr de File"</string>
@@ -840,18 +819,12 @@ Redarea automată a videoclipurilor este dezactivată."</string>
 
     <!-- Fuzzy -->
     <string name="warning">"Avertisment"</string>
-    <string name="this_is_a_nsfw_subreddit">"Acesta este un subreddit NSFW."</string>
-    <string name="this_user_has_nsfw_content">"Acest utilizator are conținut NSFW"</string>
     <string name="dismiss">"Respinge"</string>
     <string name="leave">"Ieși"</string>
     <string name="go_to_subreddit">"Merge la Subreddit"</string>
     <string name="go_to_user">"Mergi la Utilizator"</string>
     <string name="go_to_thing_hint">"Nume"</string>
     <string name="random">"Aleatoriu"</string>
-    <string name="random_subreddit">"Subreddit aleatoriu"</string>
-    <string name="random_nsfw_subreddit">"Subreddit NSFW Aleatoriu"</string>
-    <string name="random_post">"Postare Aleatorie"</string>
-    <string name="random_nsfw_post">"Postare NSFW Aleatorie"</string>
     <string name="fetch_random_thing_failed">"Încearcă din nou mai târziu"</string>
     <string name="downloading">"Se descarcă"</string>
     <string name="subreddit_filter_popular_and_all_activity_label">"r/all și r/popular"</string>
@@ -892,7 +865,6 @@ Redarea automată a videoclipurilor este dezactivată."</string>
     <string name="settings_only_disable_preview_in_video_and_gif_posts_title">"Dezactivează Previzualizarea doar pentru Postările Video și Gif"</string>
     <string name="settings_enable_search_history_title">"Activează Istoricul Căutărilor"</string>
     <string name="settings_post_history_title">"Istoric Postări"</string>
-    <string name="settings_mark_posts_as_read_title">"Marchează Postările ca fiind Citite"</string>
     <string name="settings_mark_posts_as_read_after_voting_title">"Marchează Postările ca fiind Citite după Votare"</string>
     <string name="settings_mark_posts_as_read_on_scroll_title">"Marchează Postările ca fiind Citite după Derulare"</string>
     <string name="settings_hide_read_posts_automatically_title">"Ascunde Automat Mesajele Citite"</string>
@@ -913,7 +885,6 @@ Redarea automată a videoclipurilor este dezactivată."</string>
     <string name="delete_all_read_posts_success">"Toate postările citite au fost șters cu succes"</string>
     <string name="hide_read_posts">"Ascunde Postările Citite"</string>
     <string name="filter_posts">"Filtrează Postările"</string>
-    <string name="only_nsfw">"Doar NSFW"</string>
     <string name="only_spoiler">"Doar Spoiler"</string>
     <string name="title_excludes_strings_hint">"Titlu: exclude cuvintele cheie (cheie1,cheie2)"</string>
     <string name="title_excludes_regex_hint">"Titlu: exclude regex"</string>
@@ -956,13 +927,10 @@ Redarea automată a videoclipurilor este dezactivată."</string>
     <string name="settings_hide_the_number_of_comments">"Ascunde Numărul de Comentarii"</string>
     <string name="post_layout_gallery">"Aspectul Galeriei"</string>
     <string name="post_layout_card_2">"Aspect Card 2"</string>
-    <string name="have_trouble_login_title">"Există Probleme de Autentificare"</string>
-    <string name="have_trouble_login_message">"Dorești să încerci o altă modalitate de autentificare?"</string>
     <string name="vote">"Votează"</string>
     <string name="action_share_link">"Partajează link"</string>
     <string name="action_copy_link">"Copie Link-ul"</string>
     <string name="action_add_to_post_filter">"Adaugă la Filtrul de Postări"</string>
-    <string name="settings_do_not_blur_nsfw_in_nsfw_subreddits_title">"Nu estompa imaginile NSFW în subreddit-urile NSFW"</string>
     <string name="settings_show_avatar_on_the_right">"Afișează Avatarul în Dreapta"</string>
     <string name="settings_backup_settings_title">"Setări pentru Copie de Rezervă"</string>
     <string name="settings_restore_settings_title">"Restabilirea Setărilor"</string>
@@ -1028,7 +996,6 @@ Redarea automată a videoclipurilor este dezactivată."</string>
     <string name="settings_hide_post_flair">"Ascunde Insigna Postării"</string>
     <string name="settings_crash_reports_title">"Rapoarte de Eroare"</string>
     <string name="settings_nsfw_and_spoiler_dangerous_group_title">"Periculos"</string>
-    <string name="settings_disable_nsfw_forever_title">"Dezactivează NSFW pentru totdeauna"</string>
     <string name="settings_show_only_one_comment_level_indicator">"Afișează doar un Singur Indicator de Nivel al Comentariilor"</string>
     <string name="save_comment">"Salvează"</string>
     <string name="unsave_comment">"Scoate"</string>
@@ -1037,11 +1004,6 @@ Redarea automată a videoclipurilor este dezactivată."</string>
 
     <!-- Fuzzy -->
     <string name="crash_reports_deleted">"Rapoartele de eroare au fost șterse"</string>
-
-    <!-- Fuzzy -->
-    <string name="disable_nsfw_forever_message">"Odată activat, NSFW va fi dezactivat permanent, indiferent dacă setarea NSFW este activată sau nu. Această opțiune este ireversibilă, singura modalitate de a reactiva NSFW este să ștergi datele aplicației.
-
-Încă dorești să-l activezi?"</string>
     <string name="reply">"Răspunde"</string>
     <string name="post_gallery_activity_label">"Postare Galerie"</string>
     <string name="action_share_post_link">"Partajează link postare"</string>
@@ -1064,7 +1026,6 @@ Redarea automată a videoclipurilor este dezactivată."</string>
     <string name="settings_more_tabs_show_multireddits_title">"Afișează Multireddit-urile"</string>
     <string name="settings_collapse_reddit_section_title">"Restrânge Secția Reddit"</string>
     <string name="settings_video_player_automatic_landscape_orientation">"Treci Automat la Orientarea Peisaj în Player-ul Video"</string>
-    <string name="settings_remember_muting_option_in_post_feed">"Ține Minte Opțiunea de Amuțire în Fluxul de Postări"</string>
     <string name="link_post_layout_auto">"Auto"</string>
     <string name="uploaded_images">"Imagini Încărcate"</string>
     <string name="select_image">"Selectează o Imagine"</string>
@@ -1149,8 +1110,6 @@ Apasă pentru a reîncerca."</string>
     <string name="app_lock_timeout_24_hours">"24 ore"</string>
     <string name="edit_profile_activity_label">"Editare Profil"</string>
     <string name="action_contact_mods">"Contactează Moderatorii"</string>
-    <string name="settings_save_nsfw_media_in_different_folder_title">"Salvează fișierele NSFW într-o Locație Diferită"</string>
-    <string name="settings_nsfw_download_location_title">"Locația Descărcărilor NSFW"</string>
     <string name="fetch_streamable_video_failed">"Obținerea videoclipului Streamable a eșuat"</string>
 
     <!-- EditProfileService Notification -->
@@ -1225,7 +1184,6 @@ Apasă pentru a reîncerca."</string>
     <string name="comment_karma">"Karma de la Comentarii:"</string>
     <string name="awarder_karma">"Karma pentru Acordarea Premiilor:"</string>
     <string name="awardee_karma">"Karma pentru Primirea Premiilor:"</string>
-    <string name="history_activity_label">"Istoric"</string>
     <string name="history">"Istoric"</string>
     <string name="settings_easier_to_watch_in_full_screen_title">"Mai Ușor de Privit în Ecran Complet"</string>
     <string name="clear_user_flair">"Scoate Insigna"</string>

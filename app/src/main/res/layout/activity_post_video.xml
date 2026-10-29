@@ -24,6 +24,7 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <LinearLayout
+        android:id="@+id/linear_layout_post_video_activity"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -155,6 +156,7 @@
                         android:textColor="?attr/primaryTextColor"
                         android:textSize="?attr/font_default"
                         android:fontFamily="?attr/font_family"
+                        android:visibility="gone"
                         app:lib_setRadius="6dp"
                         app:lib_setRoundedView="true"
                         app:lib_setShape="rectangle" />
@@ -182,7 +184,7 @@
                         android:textSize="?attr/font_default"
                         android:fontFamily="?attr/font_family" />
 
-                    <com.google.android.material.materialswitch.MaterialSwitch
+                    <ml.docilealligator.infinityforreddit.customviews.ThemedMaterialSwitch
                         android:id="@+id/receive_post_reply_notifications_switch_material_post_video_activity"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -205,8 +207,8 @@
                     android:hint="@string/post_title_hint"
                     android:inputType="textCapSentences|textMultiLine"
                     android:padding="16dp"
-                    android:textColor="?attr/primaryTextColor"
                     android:textSize="?attr/title_font_18"
+                    android:textStyle="bold"
                     android:fontFamily="?attr/title_font_family" />
 
                 <EditText
@@ -232,7 +234,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:padding="16dp"
-                        android:src="@drawable/ic_outline_add_a_photo_24dp"
+                        android:src="@drawable/ic_add_a_photo_24dp"
+                        android:contentDescription="@string/content_description_record_video"
                         app:useCompatPadding="true"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toStartOf="@+id/select_from_library_fab_post_video_activity"
@@ -245,7 +248,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:padding="16dp"
-                        android:src="@drawable/ic_outline_select_photo_24dp"
+                        android:src="@drawable/ic_select_photo_24dp"
+                        android:contentDescription="@string/content_description_select_video"
                         app:useCompatPadding="true"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
@@ -266,12 +270,14 @@
                     android:fontFamily="?attr/font_family"
                     android:visibility="gone" />
 
-                <com.google.android.exoplayer2.ui.PlayerView
+                <androidx.media3.ui.PlayerView
                     android:id="@+id/player_view_post_video_activity"
                     android:layout_width="match_parent"
                     android:layout_height="400dp"
                     android:visibility="gone"
-                    app:controller_layout_id="@layout/exo_playback_control_view" />
+                    android:animateLayoutChanges="true"
+                    app:controller_layout_id="@layout/exo_playback_control_view"
+                    app:animation_enabled="false" />
 
             </LinearLayout>
 

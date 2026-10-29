@@ -17,7 +17,10 @@ import android.view.inputmethod.EditorInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
@@ -38,14 +41,10 @@ import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import ml.docilealligator.infinityforreddit.ActivityToolbarInterface;
-import ml.docilealligator.infinityforreddit.FragmentCommunicator;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
-import ml.docilealligator.infinityforreddit.SortType;
-import ml.docilealligator.infinityforreddit.SortTypeSelectionCallback;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.adapters.SubredditAutocompleteRecyclerViewAdapter;
 import ml.docilealligator.infinityforreddit.apis.RedditAPI;
@@ -57,17 +56,26 @@ import ml.docilealligator.infinityforreddit.bottomsheetfragments.SearchPostSortT
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SearchUserAndSubredditSortTypeBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SortTimeBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
-import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.databinding.ActivitySearchResultBinding;
 import ml.docilealligator.infinityforreddit.events.ChangeNSFWEvent;
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
+import ml.docilealligator.infinityforreddit.fragments.FragmentCommunicator;
 import ml.docilealligator.infinityforreddit.fragments.PostFragment;
 import ml.docilealligator.infinityforreddit.fragments.SubredditListingFragment;
 import ml.docilealligator.infinityforreddit.fragments.UserListingFragment;
-import ml.docilealligator.infinityforreddit.post.PostPagingSource;
+import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.post.MarkPostAsReadInterface;
+import ml.docilealligator.infinityforreddit.post.Post;
+import ml.docilealligator.infinityforreddit.post.PostType;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostModification;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostType;
+import ml.docilealligator.infinityforreddit.readpost.ReadPostsUtils;
 import ml.docilealligator.infinityforreddit.recentsearchquery.InsertRecentSearchQuery;
 import ml.docilealligator.infinityforreddit.subreddit.ParseSubredditData;
 import ml.docilealligator.infinityforreddit.subreddit.SubredditData;
+import ml.docilealligator.infinityforreddit.thing.SelectThingReturnKey;
+import ml.docilealligator.infinityforreddit.thing.SortType;
+import ml.docilealligator.infinityforreddit.thing.SortTypeSelectionCallback;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
@@ -79,11 +87,14 @@ import retrofit2.Retrofit;
 public class SearchResultActivity extends BaseActivity implements SortTypeSelectionCallback,
         PostLayoutBottomSheetFragment.PostLayoutSelectionCallback, ActivityToolbarInterface,
         FABMoreOptionsBottomSheetFragment.FABOptionSelectionCallback, RandomBottomSheetFragment.RandomOptionSelectionCallback,
-        PostTypeBottomSheetFragment.PostTypeSelectionCallback, RecyclerViewContentScrollingInterface {
+        PostTypeBottomSheetFragment.PostTypeSelectionCallback, RecyclerViewContentScrollingInterface, MarkPostAsReadInterface {
 
-    static final String EXTRA_QUERY = "EQ";
-    static final String EXTRA_TRENDING_SOURCE = "ETS";
-    static final String EXTRA_SUBREDDIT_NAME = "ESN";
+    public static final String EXTRA_QUERY = "EQ";
+    public static final String EXTRA_TRENDING_SOURCE = "ETS";
+    public static final String EXTRA_SEARCH_IN_SUBREDDIT_OR_USER_NAME = "ESISOUN";
+    public static final String EXTRA_SEARCH_IN_MULTIREDDIT = "ESIM";
+    public static final String EXTRA_SEARCH_IN_THING_TYPE = "ESITT";
+    public static final String EXTRA_SHOULD_RETURN_SUBREDDIT_AND_USER_NAME = "ESRSAUN";
 
     private static final String INSERT_SEARCH_QUERY_SUCCESS_STATE = "ISQSS";
 
@@ -111,13 +122,21 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
     @Named("current_account")
     SharedPreferences mCurrentAccountSharedPreferences;
     @Inject
+    @Named("post_history")
+    SharedPreferences mPostHistorySharedPreferences;
+    @Inject
     CustomThemeWrapper mCustomThemeWrapper;
     @Inject
-    Executor executor;
+    Executor mExecutor;
+    private Runnable autoCompleteRunnable;
     private Call<String> subredditAutocompleteCall;
     private String mQuery;
-    private String mSubredditName;
+    private String mSearchInSubredditOrUserName;
+    private MultiReddit mSearchInMultiReddit;
+    @SelectThingReturnKey.THING_TYPE
+    private int mSearchInThingType;
     private boolean mInsertSearchQuerySuccess;
+    private boolean mReturnSubredditAndUserName;
     private FragmentManager fragmentManager;
     private SectionsPagerAdapter sectionsPagerAdapter;
     private int fabOption;
@@ -136,9 +155,7 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
 
         applyCustomTheme();
 
-        if (mSharedPreferences.getBoolean(SharedPreferencesUtils.SWIPE_RIGHT_TO_GO_BACK, true)) {
-            mSliderPanel = Slidr.attach(this);
-        }
+        attachSliderPanelIfApplicable();
 
         mViewPager2 = binding.viewPagerSearchResultActivity;
 
@@ -148,20 +165,50 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
             if (isChangeStatusBarIconColor()) {
                 addOnOffsetChangedListener(binding.appbarLayoutSearchResultActivity);            }
 
-            if (isImmersiveInterface()) {
+            if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     window.setDecorFitsSystemWindows(false);
                 } else {
                     window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
                 }
-                adjustToolbar(binding.toolbarSearchResultActivity);
+
+                ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                    @NonNull
+                    @Override
+                    public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                        Insets allInsets = Utils.getInsets(insets, false, isForcedImmersiveInterface());
+
+                        setMargins(binding.toolbarSearchResultActivity,
+                                allInsets.left,
+                                allInsets.top,
+                                allInsets.right,
+                                BaseActivity.IGNORE_MARGIN);
+
+                        binding.viewPagerSearchResultActivity.setPadding(allInsets.left, 0, allInsets.right, 0);
+
+                        setMargins(binding.fabSearchResultActivity,
+                                BaseActivity.IGNORE_MARGIN,
+                                BaseActivity.IGNORE_MARGIN,
+                                (int) Utils.convertDpToPixel(16, SearchResultActivity.this) + allInsets.right,
+                                (int) Utils.convertDpToPixel(16, SearchResultActivity.this) + allInsets.bottom);
+
+                        setMargins(binding.tabLayoutSearchResultActivity,
+                                allInsets.left,
+                                BaseActivity.IGNORE_MARGIN,
+                                allInsets.right,
+                                BaseActivity.IGNORE_MARGIN);
+
+                        return insets;
+                    }
+                });
+                /*adjustToolbar(binding.toolbarSearchResultActivity);
 
                 int navBarHeight = getNavBarHeight();
                 if (navBarHeight > 0) {
                     CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) binding.fabSearchResultActivity.getLayoutParams();
                     params.bottomMargin += navBarHeight;
                     binding.fabSearchResultActivity.setLayoutParams(params);
-                }
+                }*/
             }
         }
 
@@ -173,7 +220,10 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
         Intent intent = getIntent();
         String query = intent.getStringExtra(EXTRA_QUERY);
 
-        mSubredditName = intent.getStringExtra(EXTRA_SUBREDDIT_NAME);
+        mSearchInSubredditOrUserName = intent.getStringExtra(EXTRA_SEARCH_IN_SUBREDDIT_OR_USER_NAME);
+        mSearchInMultiReddit = intent.getParcelableExtra(EXTRA_SEARCH_IN_MULTIREDDIT);
+        mSearchInThingType = intent.getIntExtra(EXTRA_SEARCH_IN_THING_TYPE, SelectThingReturnKey.THING_TYPE.SUBREDDIT);
+        mReturnSubredditAndUserName = intent.getBooleanExtra(EXTRA_SHOULD_RETURN_SUBREDDIT_AND_USER_NAME, false);
 
         if (query != null) {
             mQuery = query;
@@ -216,6 +266,7 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
         binding.getRoot().setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
         applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutSearchResultActivity,
                 binding.collapsingToolbarLayoutSearchResultActivity, binding.toolbarSearchResultActivity);
+        applyAppBarScrollFlagsIfApplicable(binding.collapsingToolbarLayoutSearchResultActivity);
         applyTabLayoutTheme(binding.tabLayoutSearchResultActivity);
         applyFABTheme(binding.fabSearchResultActivity);
     }
@@ -223,7 +274,6 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
     private void bindView(Bundle savedInstanceState) {
         sectionsPagerAdapter = new SectionsPagerAdapter(this);
         binding.viewPagerSearchResultActivity.setAdapter(sectionsPagerAdapter);
-        binding.viewPagerSearchResultActivity.setOffscreenPageLimit(ViewPager2.OFFSCREEN_PAGE_LIMIT_DEFAULT);
         binding.viewPagerSearchResultActivity.setUserInputEnabled(!mSharedPreferences.getBoolean(SharedPreferencesUtils.DISABLE_SWIPING_BETWEEN_TABS, false));
         binding.viewPagerSearchResultActivity.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
@@ -238,16 +288,24 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
             }
         });
         new TabLayoutMediator(binding.tabLayoutSearchResultActivity, binding.viewPagerSearchResultActivity, (tab, position) -> {
-            switch (position) {
-                case 0:
-                    Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.posts));
-                    break;
-                case 1:
+            if (mReturnSubredditAndUserName) {
+                if (position == 0) {
                     Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.subreddits));
-                    break;
-                case 2:
+                } else {
                     Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.users));
-                    break;
+                }
+            } else {
+                switch (position) {
+                    case 0:
+                        Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.posts));
+                        break;
+                    case 1:
+                        Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.subreddits));
+                        break;
+                    case 2:
+                        Utils.setTitleWithCustomFontToTab(typeface, tab, getString(R.string.users));
+                        break;
+                }
             }
         }).attach();
         fixViewPager2Sensitivity(binding.viewPagerSearchResultActivity);
@@ -259,49 +317,52 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
         fabOption = bottomAppBarSharedPreference.getInt(SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB, SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_SUBMIT_POSTS);
         switch (fabOption) {
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_REFRESH:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_refresh_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_refresh_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_CHANGE_SORT_TYPE:
                 binding.fabSearchResultActivity.setImageResource(R.drawable.ic_sort_toolbar_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_CHANGE_POST_LAYOUT:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_post_layout_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_post_layout_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_SEARCH:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_search_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_search_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_GO_TO_SUBREDDIT:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_subreddit_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_subreddit_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_GO_TO_USER:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_user_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_user_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_RANDOM:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_random_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_random_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_HIDE_READ_POSTS:
                 if (accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
-                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_24dp);
+                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_day_night_24dp);
                     fabOption = SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_FILTER_POSTS;
                 } else {
-                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_hide_read_posts_24dp);
+                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_hide_read_posts_day_night_24dp);
                 }
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_FILTER_POSTS:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_24dp);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_day_night_24dp);
                 break;
             case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_GO_TO_TOP:
-                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_keyboard_double_arrow_up_24);
+                binding.fabSearchResultActivity.setImageResource(R.drawable.ic_keyboard_double_arrow_up_day_night_24dp);
                 break;
             default:
                 if (accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
-                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_24dp);
+                    binding.fabSearchResultActivity.setImageResource(R.drawable.ic_filter_day_night_24dp);
                     fabOption = SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_FILTER_POSTS;
                 } else {
                     binding.fabSearchResultActivity.setImageResource(R.drawable.ic_add_day_night_24dp);
                 }
                 break;
         }
+
+        setOtherActivitiesFabContentDescription(binding.fabSearchResultActivity, fabOption);
+
         binding.fabSearchResultActivity.setOnClickListener(view -> {
             switch (fabOption) {
                 case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_REFRESH: {
@@ -325,9 +386,9 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
                 }
                 case SharedPreferencesUtils.OTHER_ACTIVITIES_BOTTOM_APP_BAR_FAB_SEARCH: {
                     Intent intent = new Intent(this, SearchActivity.class);
-                    if (mSubredditName != null && !mSubredditName.equals("")) {
-                        intent.putExtra(SearchActivity.EXTRA_SUBREDDIT_NAME, mSubredditName);
-                    }
+                    intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_SUBREDDIT_OR_USER_NAME, mSearchInSubredditOrUserName);
+                    intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_MULTIREDDIT, mSearchInMultiReddit);
+                    intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_THING_TYPE, mSearchInThingType);
                     startActivity(intent);
                     break;
                 }
@@ -370,9 +431,10 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
             return true;
         });
 
-        if (!accountName.equals(Account.ANONYMOUS_ACCOUNT)&& mSharedPreferences.getBoolean(SharedPreferencesUtils.ENABLE_SEARCH_HISTORY, true) && !mInsertSearchQuerySuccess && mQuery != null) {
-            InsertRecentSearchQuery.insertRecentSearchQueryListener(executor, new Handler(getMainLooper()),
-                    mRedditDataRoomDatabase, accountName, mQuery, () -> mInsertSearchQuerySuccess = true);
+        if (!accountName.equals(Account.ANONYMOUS_ACCOUNT) && mSharedPreferences.getBoolean(SharedPreferencesUtils.ENABLE_SEARCH_HISTORY, true) && !mInsertSearchQuerySuccess && mQuery != null) {
+            InsertRecentSearchQuery.insertRecentSearchQueryListener(mExecutor, new Handler(getMainLooper()),
+                    mRedditDataRoomDatabase, accountName, mQuery, mSearchInSubredditOrUserName, mSearchInMultiReddit,
+                    mSearchInThingType, () -> mInsertSearchQuerySuccess = true);
         }
     }
 
@@ -405,16 +467,16 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
         if (itemId == android.R.id.home) {
-            onBackPressed();
+            getOnBackPressedDispatcher().onBackPressed();
             return true;
         } else if (itemId == R.id.action_sort_search_result_activity) {
             displaySortTypeBottomSheetFragment();
             return true;
         } else if (itemId == R.id.action_search_search_result_activity) {
             Intent intent = new Intent(this, SearchActivity.class);
-            if (mSubredditName != null && !mSubredditName.equals("")) {
-                intent.putExtra(SearchActivity.EXTRA_SUBREDDIT_NAME, mSubredditName);
-            }
+            intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_SUBREDDIT_OR_USER_NAME, mSearchInSubredditOrUserName);
+            intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_MULTIREDDIT, mSearchInMultiReddit);
+            intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_THING_TYPE, mSearchInThingType);
             intent.putExtra(SearchActivity.EXTRA_QUERY, mQuery);
             finish();
             startActivity(intent);
@@ -524,9 +586,9 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
                 break;
             case FABMoreOptionsBottomSheetFragment.FAB_OPTION_SEARCH:
                 Intent intent = new Intent(this, SearchActivity.class);
-                if (mSubredditName != null && !mSubredditName.equals("")) {
-                    intent.putExtra(SearchActivity.EXTRA_SUBREDDIT_NAME, mSubredditName);
-                }
+                intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_SUBREDDIT_OR_USER_NAME, mSearchInSubredditOrUserName);
+                intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_MULTIREDDIT, mSearchInMultiReddit);
+                intent.putExtra(SearchActivity.EXTRA_SEARCH_IN_THING_TYPE, mSearchInThingType);
                 startActivity(intent);
                 break;
             case FABMoreOptionsBottomSheetFragment.FAB_OPTION_GO_TO_SUBREDDIT: {
@@ -587,6 +649,7 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
             return false;
         });
 
+        Handler handler = new Handler();
         boolean nsfw = mNsfwAndSpoilerSharedPreferences.getBoolean((accountName.equals(Account.ANONYMOUS_ACCOUNT) ? "" : accountName) + SharedPreferencesUtils.NSFW_BASE, false);
         thingEditText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -596,39 +659,54 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
 
             @Override
             public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-
+                if (subredditAutocompleteCall != null && subredditAutocompleteCall.isExecuted()) {
+                    subredditAutocompleteCall.cancel();
+                }
+                if (autoCompleteRunnable != null) {
+                    handler.removeCallbacks(autoCompleteRunnable);
+                }
             }
 
             @Override
             public void afterTextChanged(Editable editable) {
-                if (subredditAutocompleteCall != null) {
-                    subredditAutocompleteCall.cancel();
+                if (Account.ANONYMOUS_ACCOUNT.equals(accountName)) {
+                    return;
                 }
-                subredditAutocompleteCall = mOauthRetrofit.create(RedditAPI.class).subredditAutocomplete(APIUtils.getOAuthHeader(accessToken),
-                        editable.toString(), nsfw);
-                subredditAutocompleteCall.enqueue(new Callback<String>() {
-                    @Override
-                    public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
-                        if (response.isSuccessful()) {
-                            ParseSubredditData.parseSubredditListingData(response.body(), nsfw, new ParseSubredditData.ParseSubredditListingDataListener() {
-                                @Override
-                                public void onParseSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
-                                    adapter.setSubreddits(subredditData);
+
+                String currentQuery = editable.toString().trim();
+                if (!currentQuery.isEmpty()) {
+                    autoCompleteRunnable = () -> {
+                        subredditAutocompleteCall = mOauthRetrofit.create(RedditAPI.class).subredditAutocomplete(APIUtils.getOAuthHeader(accessToken),
+                                currentQuery, nsfw);
+                        subredditAutocompleteCall.enqueue(new Callback<String>() {
+                            @Override
+                            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
+                                subredditAutocompleteCall = null;
+                                if (response.isSuccessful()) {
+                                    ParseSubredditData.parseSubredditListingData(mExecutor, handler, response.body(),
+                                            nsfw, new ParseSubredditData.ParseSubredditListingDataListener() {
+                                                @Override
+                                                public void onParseSubredditListingDataSuccess(ArrayList<SubredditData> subredditData, String after) {
+                                                    adapter.setSubreddits(subredditData);
+                                                }
+
+                                                @Override
+                                                public void onParseSubredditListingDataFail() {
+
+                                                }
+                                            });
                                 }
+                            }
 
-                                @Override
-                                public void onParseSubredditListingDataFail() {
+                            @Override
+                            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {
+                                subredditAutocompleteCall = null;
+                            }
+                        });
+                    };
 
-                                }
-                            });
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {
-
-                    }
-                });
+                    handler.postDelayed(autoCompleteRunnable, 500);
+                }
             }
         });
         new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
@@ -739,6 +817,12 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
         startActivity(intent);
     }
 
+    @Override
+    public void markPostAsRead(Post post) {
+        int readPostsLimit = ReadPostsUtils.GetReadPostsLimit(accountName, mPostHistorySharedPreferences);
+        ReadPostModification.insertReadPost(mRedditDataRoomDatabase, mExecutor, accountName, post.getId(), ReadPostType.READ_POSTS, readPostsLimit);
+    }
+
     private class SectionsPagerAdapter extends FragmentStateAdapter {
 
         public SectionsPagerAdapter(FragmentActivity fa) {
@@ -748,34 +832,64 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
         @NonNull
         @Override
         public Fragment createFragment(int position) {
-            switch (position) {
-                case 0: {
-                    PostFragment mFragment = new PostFragment();
-                    Bundle bundle = new Bundle();
-                    bundle.putInt(PostFragment.EXTRA_POST_TYPE, PostPagingSource.TYPE_SEARCH);
-                    bundle.putString(PostFragment.EXTRA_NAME, mSubredditName);
-                    bundle.putString(PostFragment.EXTRA_QUERY, mQuery);
-                    bundle.putString(PostFragment.EXTRA_TRENDING_SOURCE, getIntent().getStringExtra(EXTRA_TRENDING_SOURCE));
-                    mFragment.setArguments(bundle);
-                    return mFragment;
+            if (mReturnSubredditAndUserName) {
+                if (position == 0) {
+                    return createSubredditListingFragment(true);
                 }
-                case 1: {
-                    SubredditListingFragment mFragment = new SubredditListingFragment();
-                    Bundle bundle = new Bundle();
-                    bundle.putString(SubredditListingFragment.EXTRA_QUERY, mQuery);
-                    bundle.putBoolean(SubredditListingFragment.EXTRA_IS_GETTING_SUBREDDIT_INFO, false);
-                    mFragment.setArguments(bundle);
-                    return mFragment;
-                }
-                default: {
-                    UserListingFragment mFragment = new UserListingFragment();
-                    Bundle bundle = new Bundle();
-                    bundle.putString(UserListingFragment.EXTRA_QUERY, mQuery);
-                    bundle.putBoolean(UserListingFragment.EXTRA_IS_GETTING_USER_INFO, false);
-                    mFragment.setArguments(bundle);
-                    return mFragment;
+                return createUserListingFragment(true);
+            } else {
+                switch (position) {
+                    case 0: {
+                        return createPostFragment();
+                    }
+                    case 1: {
+                        return createSubredditListingFragment(false);
+                    }
+                    default: {
+                        return createUserListingFragment(false);
+                    }
                 }
             }
+        }
+
+        private Fragment createPostFragment() {
+            PostFragment mFragment = new PostFragment();
+            Bundle bundle = new Bundle();
+            switch (mSearchInThingType) {
+                case SelectThingReturnKey.THING_TYPE.SUBREDDIT:
+                    bundle.putInt(PostFragment.EXTRA_POST_TYPE, PostType.SEARCH);
+                    bundle.putString(PostFragment.EXTRA_NAME, mSearchInSubredditOrUserName);
+                    break;
+                case SelectThingReturnKey.THING_TYPE.USER:
+                    bundle.putInt(PostFragment.EXTRA_POST_TYPE, PostType.SEARCH);
+                    bundle.putString(PostFragment.EXTRA_NAME, "u_" + mSearchInSubredditOrUserName);
+                    break;
+                case SelectThingReturnKey.THING_TYPE.MULTIREDDIT:
+                    bundle.putInt(PostFragment.EXTRA_POST_TYPE, PostType.MULTIREDDIT);
+                    bundle.putString(PostFragment.EXTRA_NAME, mSearchInMultiReddit.getPath());
+            }
+            bundle.putString(PostFragment.EXTRA_QUERY, mQuery);
+            bundle.putString(PostFragment.EXTRA_TRENDING_SOURCE, getIntent().getStringExtra(EXTRA_TRENDING_SOURCE));
+            mFragment.setArguments(bundle);
+            return mFragment;
+        }
+
+        private Fragment createSubredditListingFragment(boolean returnSubredditName) {
+            SubredditListingFragment mFragment = new SubredditListingFragment();
+            Bundle bundle = new Bundle();
+            bundle.putString(SubredditListingFragment.EXTRA_QUERY, mQuery);
+            bundle.putBoolean(SubredditListingFragment.EXTRA_IS_GETTING_SUBREDDIT_INFO, returnSubredditName);
+            mFragment.setArguments(bundle);
+            return mFragment;
+        }
+
+        private Fragment createUserListingFragment(boolean returnUsername) {
+            UserListingFragment mFragment = new UserListingFragment();
+            Bundle bundle = new Bundle();
+            bundle.putString(UserListingFragment.EXTRA_QUERY, mQuery);
+            bundle.putBoolean(UserListingFragment.EXTRA_IS_GETTING_USER_INFO, returnUsername);
+            mFragment.setArguments(bundle);
+            return mFragment;
         }
 
         @Nullable
@@ -877,6 +991,9 @@ public class SearchResultActivity extends BaseActivity implements SortTypeSelect
 
         @Override
         public int getItemCount() {
+            if (mReturnSubredditAndUserName) {
+                return 2;
+            }
             return 3;
         }
     }

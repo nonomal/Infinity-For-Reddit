@@ -24,6 +24,7 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <LinearLayout
+        android:id="@+id/linear_layout_post_image_activity"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -155,6 +156,7 @@
                         android:textColor="?attr/primaryTextColor"
                         android:textSize="?attr/font_default"
                         android:fontFamily="?attr/font_family"
+                        android:visibility="gone"
                         app:lib_setRadius="6dp"
                         app:lib_setRoundedView="true"
                         app:lib_setShape="rectangle" />
@@ -182,7 +184,7 @@
                         android:textSize="?attr/font_default"
                         android:fontFamily="?attr/font_family" />
 
-                    <com.google.android.material.materialswitch.MaterialSwitch
+                    <ml.docilealligator.infinityforreddit.customviews.ThemedMaterialSwitch
                         android:id="@+id/receive_post_reply_notifications_switch_material_post_image_activity"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -205,8 +207,8 @@
                     android:hint="@string/post_title_hint"
                     android:inputType="textCapSentences|textMultiLine"
                     android:padding="16dp"
-                    android:textColor="?attr/primaryTextColor"
                     android:textSize="?attr/title_font_18"
+                    android:textStyle="bold"
                     android:fontFamily="?attr/title_font_family" />
 
                 <EditText
@@ -232,7 +234,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_margin="16dp"
-                        android:src="@drawable/ic_outline_add_a_photo_24dp"
+                        android:src="@drawable/ic_add_a_photo_24dp"
+                        android:contentDescription="@string/content_description_capture_photo"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toStartOf="@+id/select_from_library_fab_post_image_activity"
                         app:layout_constraintHorizontal_chainStyle="spread"
@@ -245,7 +248,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_margin="16dp"
-                        android:src="@drawable/ic_outline_select_photo_24dp"
+                        android:src="@drawable/ic_select_photo_24dp"
+                        android:contentDescription="@string/content_description_select_image"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintHorizontal_chainStyle="spread"
@@ -272,7 +276,8 @@
                     android:layout_height="wrap_content"
                     android:adjustViewBounds="true"
                     android:scaleType="fitStart"
-                    android:visibility="gone" />
+                    android:visibility="gone"
+                    android:contentDescription="@string/content_description_selected_image" />
 
             </LinearLayout>
 

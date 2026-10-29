@@ -1,6 +1,9 @@
 package ml.docilealligator.infinityforreddit.activities;
 
 import android.Manifest;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -12,6 +15,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.os.PersistableBundle;
 import android.text.Html;
 import android.text.Spanned;
 import android.view.Menu;
@@ -41,7 +46,9 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView;
 import com.github.piasy.biv.BigImageViewer;
 import com.github.piasy.biv.loader.ImageLoader;
 import com.github.piasy.biv.loader.glide.GlideImageLoader;
-import com.github.piasy.biv.view.GlideImageViewFactory;
+
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
 
 import java.io.File;
 import java.util.concurrent.Executor;
@@ -53,15 +60,18 @@ import ml.docilealligator.infinityforreddit.BuildConfig;
 import ml.docilealligator.infinityforreddit.CustomFontReceiver;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
+import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy;
 import ml.docilealligator.infinityforreddit.SetAsWallpaperCallback;
 import ml.docilealligator.infinityforreddit.WallpaperSetter;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveBitmapImageToFile;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveGIFToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
+import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
 import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrConfig;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrPosition;
 import ml.docilealligator.infinityforreddit.databinding.ActivityViewImageOrGifBinding;
+import ml.docilealligator.infinityforreddit.events.FinishViewMediaActivityEvent;
 import ml.docilealligator.infinityforreddit.font.ContentFontFamily;
 import ml.docilealligator.infinityforreddit.font.ContentFontStyle;
 import ml.docilealligator.infinityforreddit.font.FontFamily;
@@ -130,6 +140,8 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
         binding = ActivityViewImageOrGifBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        EventBus.getDefault().register(this);
+
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
@@ -141,7 +153,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
 
         glide = Glide.with(this);
 
-        handler = new Handler();
+        handler = new Handler(Looper.getMainLooper());
 
         Intent intent = getIntent();
         mImageUrl = intent.getStringExtra(EXTRA_GIF_URL_KEY);
@@ -225,7 +237,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
             }
         });
 
-        binding.imageViewViewImageOrGifActivity.setImageViewFactory(new GlideImageViewFactory());
+        binding.imageViewViewImageOrGifActivity.setImageViewFactory(new GlideGifImageViewFactory(new SaveMemoryCenterInisdeDownsampleStrategy(Integer.parseInt(mSharedPreferences.getString(SharedPreferencesUtils.POST_FEED_MAX_RESOLUTION, "5000000")))));
 
         binding.imageViewViewImageOrGifActivity.setImageLoaderCallback(new ImageLoader.Callback() {
             @Override
@@ -355,13 +367,17 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
     private void download() {
         isDownloading = false;
 
-        Intent intent = new Intent(this, DownloadMediaService.class);
-        intent.putExtra(DownloadMediaService.EXTRA_URL, mImageUrl);
-        intent.putExtra(DownloadMediaService.EXTRA_MEDIA_TYPE, isGif ? DownloadMediaService.EXTRA_MEDIA_TYPE_GIF : DownloadMediaService.EXTRA_MEDIA_TYPE_IMAGE);
-        intent.putExtra(DownloadMediaService.EXTRA_FILE_NAME, mImageFileName);
-        intent.putExtra(DownloadMediaService.EXTRA_SUBREDDIT_NAME, mSubredditName);
-        intent.putExtra(DownloadMediaService.EXTRA_IS_NSFW, isNsfw);
-        ContextCompat.startForegroundService(this, intent);
+        PersistableBundle extras = new PersistableBundle();
+        extras.putString(DownloadMediaService.EXTRA_URL, mImageUrl);
+        extras.putInt(DownloadMediaService.EXTRA_MEDIA_TYPE, isGif ? DownloadMediaService.EXTRA_MEDIA_TYPE_GIF : DownloadMediaService.EXTRA_MEDIA_TYPE_IMAGE);
+        extras.putString(DownloadMediaService.EXTRA_FILE_NAME, mImageFileName);
+        extras.putString(DownloadMediaService.EXTRA_SUBREDDIT_NAME, mSubredditName);
+        extras.putInt(DownloadMediaService.EXTRA_IS_NSFW, isNsfw ? 1 : 0);
+
+        //TODO: contentEstimatedBytes
+        JobInfo jobInfo = DownloadMediaService.constructJobInfo(this, 5000000, extras);
+        ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
+
         Toast.makeText(this, R.string.download_started, Toast.LENGTH_SHORT).show();
     }
 
@@ -370,10 +386,11 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
 
             @Override
             public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                if (getExternalCacheDir() != null) {
+                File cacheDir = Utils.getCacheDir(ViewImageOrGifActivity.this);
+                if (cacheDir != null) {
                     Toast.makeText(ViewImageOrGifActivity.this, R.string.save_image_first, Toast.LENGTH_SHORT).show();
-                    SaveBitmapImageToFile.SaveBitmapImageToFile(mExecutor, handler, resource,
-                            getExternalCacheDir().getPath(), mImageFileName,
+                    SaveBitmapImageToFile.saveBitmapImageToFile(mExecutor, handler, resource,
+                            cacheDir.getPath(), mImageFileName,
                             new SaveBitmapImageToFile.SaveBitmapImageToFileListener() {
                                 @Override
                                 public void saveSuccess(File imageFile) {
@@ -416,9 +433,10 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
 
             @Override
             public boolean onResourceReady(GifDrawable resource, Object model, Target<GifDrawable> target, DataSource dataSource, boolean isFirstResource) {
-                if (getExternalCacheDir() != null) {
-                    SaveGIFToFile.saveGifToFile(mExecutor, handler, resource, getExternalCacheDir().getPath(), mImageFileName,
-                            new SaveGIFToFile.SaveGIFToFileAsyncTaskListener() {
+                File cacheDir = Utils.getCacheDir(ViewImageOrGifActivity.this);
+                if (cacheDir != null) {
+                    SaveGIFToFile.saveGifToFile(mExecutor, handler, resource, cacheDir.getPath(), mImageFileName,
+                            new SaveGIFToFile.SaveGIFToFileListener() {
                                 @Override
                                 public void saveSuccess(File imageFile) {
                                     Uri uri = FileProvider.getUriForFile(ViewImageOrGifActivity.this,
@@ -531,12 +549,18 @@ public class ViewImageOrGifActivity extends AppCompatActivity implements SetAsWa
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        EventBus.getDefault().unregister(this);
         BigImageViewer.imageLoader().cancelAll();
+        super.onDestroy();
     }
 
     @Override
     public void setCustomFont(Typeface typeface, Typeface titleTypeface, Typeface contentTypeface) {
         this.typeface = typeface;
+    }
+
+    @Subscribe
+    public void onFinishViewMediaActivityEvent(FinishViewMediaActivityEvent e) {
+        finish();
     }
 }

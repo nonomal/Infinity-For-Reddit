@@ -1,16 +1,20 @@
 package ml.docilealligator.infinityforreddit.fragments;
 
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
@@ -23,20 +27,19 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import me.zhanghai.android.fastscroll.FastScrollerBuilder;
-import ml.docilealligator.infinityforreddit.FragmentCommunicator;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
-import ml.docilealligator.infinityforreddit.activities.SubredditSelectionActivity;
 import ml.docilealligator.infinityforreddit.activities.SubscribedThingListingActivity;
 import ml.docilealligator.infinityforreddit.adapters.SubscribedSubredditsRecyclerViewAdapter;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.customviews.LinearLayoutManagerBugFixed;
 import ml.docilealligator.infinityforreddit.databinding.FragmentSubscribedSubredditsListingBinding;
 import ml.docilealligator.infinityforreddit.subscribedsubreddit.SubscribedSubredditViewModel;
-import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
+import ml.docilealligator.infinityforreddit.thing.SelectThingReturnKey;
+import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
 
 
@@ -80,16 +83,27 @@ public class SubscribedSubredditsListingFragment extends Fragment implements Fra
 
         applyTheme();
 
-        if ((mActivity.isImmersiveInterface())) {
-            binding.recyclerViewSubscribedSubredditsListingFragment.setPadding(0, 0, 0, ((BaseActivity) mActivity).getNavBarHeight());
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        if ((mActivity.isImmersiveInterfaceRespectForcedEdgeToEdge())) {
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, false, mActivity.isForcedImmersiveInterface());
+                    binding.recyclerViewSubscribedSubredditsListingFragment.setPadding(
+                            0, 0, 0, allInsets.bottom
+                    );
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
+            //binding.recyclerViewSubscribedSubredditsListingFragment.setPadding(0, 0, 0, mActivity.getNavBarHeight());
+        }/* else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && mSharedPreferences.getBoolean(SharedPreferencesUtils.IMMERSIVE_INTERFACE_KEY, true)) {
             Resources resources = getResources();
             int navBarResourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
             if (navBarResourceId > 0) {
                 binding.recyclerViewSubscribedSubredditsListingFragment.setPadding(0, 0, 0, resources.getDimensionPixelSize(navBarResourceId));
             }
-        }
+        }*/
 
         if (mActivity.accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
             binding.swipeRefreshLayoutSubscribedSubredditsListingFragment.setEnabled(false);
@@ -104,7 +118,14 @@ public class SubscribedSubredditsListingFragment extends Fragment implements Fra
         if (getArguments().getBoolean(EXTRA_IS_SUBREDDIT_SELECTION)) {
             adapter = new SubscribedSubredditsRecyclerViewAdapter(mActivity, mExecutor, mOauthRetrofit, mRedditDataRoomDatabase,
                     mCustomThemeWrapper, mActivity.accessToken, mActivity.accountName, getArguments().getBoolean(EXTRA_EXTRA_CLEAR_SELECTION),
-                    (name, iconUrl, subredditIsUser) -> ((SubredditSelectionActivity) mActivity).getSelectedSubreddit(name, iconUrl, subredditIsUser));
+                    (name, iconUrl, subredditIsUser) -> {
+                        Intent returnIntent = new Intent();
+                        returnIntent.putExtra(SelectThingReturnKey.RETURN_EXTRA_SUBREDDIT_OR_USER_NAME, name);
+                        returnIntent.putExtra(SelectThingReturnKey.RETURN_EXTRA_SUBREDDIT_OR_USER_ICON, iconUrl);
+                        returnIntent.putExtra(SelectThingReturnKey.RETURN_EXTRA_THING_TYPE, subredditIsUser ? SelectThingReturnKey.THING_TYPE.USER : SelectThingReturnKey.THING_TYPE.SUBREDDIT);
+                        mActivity.setResult(Activity.RESULT_OK, returnIntent);
+                        mActivity.finish();
+                    });
         } else {
             adapter = new SubscribedSubredditsRecyclerViewAdapter(mActivity, mExecutor, mOauthRetrofit, mRedditDataRoomDatabase,
                     mCustomThemeWrapper, mActivity.accessToken, mActivity.accountName);
@@ -114,7 +135,7 @@ public class SubscribedSubredditsListingFragment extends Fragment implements Fra
         new FastScrollerBuilder(binding.recyclerViewSubscribedSubredditsListingFragment).useMd2Style().build();
 
         mSubscribedSubredditViewModel = new ViewModelProvider(this,
-                new SubscribedSubredditViewModel.Factory(mActivity.getApplication(), mRedditDataRoomDatabase, mActivity.accountName))
+                new SubscribedSubredditViewModel.Factory(mRedditDataRoomDatabase, mActivity.accountName))
                 .get(SubscribedSubredditViewModel.class);
         mSubscribedSubredditViewModel.getAllSubscribedSubreddits().observe(getViewLifecycleOwner(), subscribedSubredditData -> {
             binding.swipeRefreshLayoutSubscribedSubredditsListingFragment.setRefreshing(false);

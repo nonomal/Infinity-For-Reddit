@@ -1,24 +1,35 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.text.Html;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
+import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentStatePagerAdapter;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager.widget.ViewPager;
 
 import org.json.JSONArray;
@@ -33,7 +44,6 @@ import javax.inject.Named;
 
 import app.futured.hauler.DragDirection;
 import ml.docilealligator.infinityforreddit.CustomFontReceiver;
-import ml.docilealligator.infinityforreddit.ImgurMedia;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.SetAsWallpaperCallback;
@@ -48,10 +58,13 @@ import ml.docilealligator.infinityforreddit.font.TitleFontFamily;
 import ml.docilealligator.infinityforreddit.font.TitleFontStyle;
 import ml.docilealligator.infinityforreddit.fragments.ViewImgurImageFragment;
 import ml.docilealligator.infinityforreddit.fragments.ViewImgurVideoFragment;
+import ml.docilealligator.infinityforreddit.post.ImgurMedia;
+import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import ml.docilealligator.infinityforreddit.utils.JSONUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
+import ml.docilealligator.infinityforreddit.viewmodels.ViewGalleryViewModel;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -68,8 +81,9 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
 
     public Typeface typeface;
     private SectionsPagerAdapter sectionsPagerAdapter;
-    private ArrayList<ImgurMedia> images;
+    private ArrayList<ImgurMedia> mImages;
     private boolean useBottomAppBar;
+    private boolean isActionBarHidden = false;
     @Inject
     @Named("imgur")
     Retrofit imgurRetrofit;
@@ -78,13 +92,21 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
     SharedPreferences sharedPreferences;
     @Inject
     Executor executor;
+    private Handler handler;
     private ActivityViewImgurMediaBinding binding;
+    ViewGalleryViewModel viewGalleryViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         ((Infinity) getApplication()).getAppComponent().inject(this);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+        } else {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+        }
 
         getTheme().applyStyle(R.style.Theme_Normal, true);
 
@@ -109,22 +131,39 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
         binding = ActivityViewImgurMediaBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        handler = new Handler(Looper.getMainLooper());
 
         useBottomAppBar = sharedPreferences.getBoolean(SharedPreferencesUtils.USE_BOTTOM_TOOLBAR_IN_MEDIA_VIEWER, false);
 
         if (!useBottomAppBar) {
-            ActionBar actionBar = getSupportActionBar();
-            Drawable upArrow = getResources().getDrawable(R.drawable.ic_arrow_back_white_24dp);
-            actionBar.setHomeAsUpIndicator(upArrow);
-            actionBar.setBackgroundDrawable(new ColorDrawable(getResources().getColor(R.color.transparentActionBarAndExoPlayerControllerColor)));
+            if (binding.toolbarViewImgurMediaActivity.getNavigationIcon() != null) {
+                binding.toolbarViewImgurMediaActivity.getNavigationIcon().setColorFilter(Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN);
+            }
+            if (binding.toolbarViewImgurMediaActivity.getOverflowIcon() != null) {
+                binding.toolbarViewImgurMediaActivity.getOverflowIcon().setColorFilter(Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN);
+            }
+
+            setSupportActionBar(binding.toolbarViewImgurMediaActivity);
             setTitle(" ");
         } else {
-            getSupportActionBar().hide();
+            binding.toolbarViewImgurMediaActivity.setVisibility(View.GONE);
         }
+
+        viewGalleryViewModel = new ViewModelProvider(this).get(ViewGalleryViewModel.class);
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+            @NonNull
+            @Override
+            public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                Insets allInsets = Utils.getInsets(insets, false, false);
+                ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) binding.toolbarViewImgurMediaActivity.getLayoutParams();
+                params.topMargin = allInsets.top;
+                binding.toolbarViewImgurMediaActivity.setLayoutParams(params);
+
+                viewGalleryViewModel.setInsets(allInsets);
+                return WindowInsetsCompat.CONSUMED;
+            }
+        });
 
         String imgurId = getIntent().getStringExtra(EXTRA_IMGUR_ID);
         if (imgurId == null) {
@@ -133,20 +172,20 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
         }
 
         if (savedInstanceState != null) {
-            images = savedInstanceState.getParcelableArrayList(IMGUR_IMAGES_STATE);
+            mImages = savedInstanceState.getParcelableArrayList(IMGUR_IMAGES_STATE);
         }
 
         if (sharedPreferences.getBoolean(SharedPreferencesUtils.SWIPE_VERTICALLY_TO_GO_BACK_FROM_MEDIA, true)) {
-            binding.getRoot().setOnDragDismissedListener(dragDirection -> {
+            binding.haulerViewViewImgurMediaActivity.setOnDragDismissedListener(dragDirection -> {
                 int slide = dragDirection == DragDirection.UP ? R.anim.slide_out_up : R.anim.slide_out_down;
                 finish();
                 overridePendingTransition(0, slide);
             });
         } else {
-            binding.getRoot().setDragEnabled(false);
+            binding.haulerViewViewImgurMediaActivity.setDragEnabled(false);
         }
 
-        if (images == null) {
+        if (mImages == null) {
             fetchImgurMedia(imgurId);
         } else {
             binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
@@ -166,25 +205,24 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
         switch (getIntent().getIntExtra(EXTRA_IMGUR_TYPE, IMGUR_TYPE_IMAGE)) {
             case IMGUR_TYPE_GALLERY:
                 imgurRetrofit.create(ImgurAPI.class).getGalleryImages(APIUtils.IMGUR_CLIENT_ID, imgurId)
-                        .enqueue(new Callback<String>() {
+                        .enqueue(new Callback<>() {
                             @Override
                             public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
                                 if (response.isSuccessful()) {
-                                    new ParseImgurImagesAsyncTask(response.body(), new ParseImgurImagesAsyncTask.ParseImgurImagesAsyncTaskListener() {
-                                        @Override
-                                        public void success(ArrayList<ImgurMedia> images) {
-                                            ViewImgurMediaActivity.this.images = images;
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
-                                            setupViewPager();
-                                        }
-
-                                        @Override
-                                        public void failed() {
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
-                                        }
-                                    }).execute();
+                                    executor.execute(() -> {
+                                        ArrayList<ImgurMedia> images = parseImgurImages(response.body());
+                                        handler.post(() -> {
+                                            if (images != null) {
+                                                mImages = images;
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
+                                                setupViewPager();
+                                            } else {
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
+                                            }
+                                        });
+                                    });
                                 } else {
                                     binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
                                     binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
@@ -204,21 +242,20 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
                             @Override
                             public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
                                 if (response.isSuccessful()) {
-                                    new ParseImgurImagesAsyncTask(response.body(), new ParseImgurImagesAsyncTask.ParseImgurImagesAsyncTaskListener() {
-                                        @Override
-                                        public void success(ArrayList<ImgurMedia> images) {
-                                            ViewImgurMediaActivity.this.images = images;
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
-                                            setupViewPager();
-                                        }
-
-                                        @Override
-                                        public void failed() {
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
-                                        }
-                                    }).execute();
+                                    executor.execute(() -> {
+                                        ArrayList<ImgurMedia> images = parseImgurImages(response.body());
+                                        handler.post(() -> {
+                                            if (images != null) {
+                                                mImages = images;
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
+                                                setupViewPager();
+                                            } else {
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
+                                            }
+                                        });
+                                    });
                                 } else {
                                     binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
                                     binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
@@ -238,22 +275,21 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
                             @Override
                             public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {
                                 if (response.isSuccessful()) {
-                                    new ParseImgurImageAsyncTask(response.body(), new ParseImgurImageAsyncTask.ParseImgurImageAsyncTaskListener() {
-                                        @Override
-                                        public void success(ImgurMedia image) {
-                                            ViewImgurMediaActivity.this.images = new ArrayList<>();
-                                            ViewImgurMediaActivity.this.images.add(image);
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
-                                            setupViewPager();
-                                        }
-
-                                        @Override
-                                        public void failed() {
-                                            binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
-                                            binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
-                                        }
-                                    }).execute();
+                                    executor.execute(() -> {
+                                        ImgurMedia image = parseImgurImage(response.body());
+                                        handler.post(() -> {
+                                            if (image != null) {
+                                                mImages = new ArrayList<>();
+                                                mImages.add(image);
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.GONE);
+                                                setupViewPager();
+                                            } else {
+                                                binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
+                                                binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
+                                            }
+                                        });
+                                    });
                                 } else {
                                     binding.progressBarViewImgurMediaActivity.setVisibility(View.GONE);
                                     binding.loadImageErrorLinearLayoutViewImgurMediaActivity.setVisibility(View.VISIBLE);
@@ -286,17 +322,21 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
     }
 
     private void setToolbarTitle(int position) {
-        if (images != null && position >= 0 && position < images.size()) {
-            if (images.get(position).getType() == ImgurMedia.TYPE_VIDEO) {
-                setTitle(Utils.getTabTextWithCustomFont(typeface, Html.fromHtml("<font color=\"#FFFFFF\">" + getString(R.string.view_imgur_media_activity_video_label, position + 1, images.size()) + "</font>")));
+        if (mImages != null && position >= 0 && position < mImages.size()) {
+            if (mImages.get(position).getType() == ImgurMedia.TYPE_VIDEO) {
+                setTitle(Utils.getTabTextWithCustomFont(typeface, Html.fromHtml("<font color=\"#FFFFFF\">" + getString(R.string.view_imgur_media_activity_video_label, position + 1, mImages.size()) + "</font>")));
             } else {
-                setTitle(Utils.getTabTextWithCustomFont(typeface, Html.fromHtml("<font color=\"#FFFFFF\">" + getString(R.string.view_imgur_media_activity_image_label, position + 1, images.size()) + "</font>")));
+                setTitle(Utils.getTabTextWithCustomFont(typeface, Html.fromHtml("<font color=\"#FFFFFF\">" + getString(R.string.view_imgur_media_activity_image_label, position + 1, mImages.size()) + "</font>")));
             }
         }
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.view_imgur_media_activity, menu);
+        for (int i = 0; i < menu.size(); i++) {
+            Utils.setTitleWithCustomFontToMenuItem(typeface, menu.getItem(i), null);
+        }
         return true;
     }
 
@@ -304,6 +344,13 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
             finish();
+            return true;
+        } else if (item.getItemId() == R.id.action_download_all_imgur_album_media_view_imgur_media_activity) {
+            //TODO: contentEstimatedBytes
+            JobInfo jobInfo = DownloadMediaService.constructImgurAlbumDownloadAllMediaJobInfo(this, 5000000L * mImages.size(), mImages);
+            ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
+
+            Toast.makeText(this, R.string.download_started, Toast.LENGTH_SHORT).show();
             return true;
         }
 
@@ -313,13 +360,13 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putParcelableArrayList(IMGUR_IMAGES_STATE, images);
+        outState.putParcelableArrayList(IMGUR_IMAGES_STATE, mImages);
     }
 
     @Override
     public void setToHomeScreen(int viewPagerPosition) {
-        if (images != null && viewPagerPosition >= 0 && viewPagerPosition < images.size()) {
-            WallpaperSetter.set(executor, new Handler(), images.get(viewPagerPosition).getLink(), WallpaperSetter.HOME_SCREEN, this,
+        if (mImages != null && viewPagerPosition >= 0 && viewPagerPosition < mImages.size()) {
+            WallpaperSetter.set(executor, handler, mImages.get(viewPagerPosition).getLink(), WallpaperSetter.HOME_SCREEN, this,
                     new WallpaperSetter.SetWallpaperListener() {
                         @Override
                         public void success() {
@@ -336,8 +383,8 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
 
     @Override
     public void setToLockScreen(int viewPagerPosition) {
-        if (images != null && viewPagerPosition >= 0 && viewPagerPosition < images.size()) {
-            WallpaperSetter.set(executor, new Handler(), images.get(viewPagerPosition).getLink(), WallpaperSetter.LOCK_SCREEN, this,
+        if (mImages != null && viewPagerPosition >= 0 && viewPagerPosition < mImages.size()) {
+            WallpaperSetter.set(executor, handler, mImages.get(viewPagerPosition).getLink(), WallpaperSetter.LOCK_SCREEN, this,
                     new WallpaperSetter.SetWallpaperListener() {
                         @Override
                         public void success() {
@@ -354,8 +401,8 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
 
     @Override
     public void setToBoth(int viewPagerPosition) {
-        if (images != null && viewPagerPosition >= 0 && viewPagerPosition < images.size()) {
-            WallpaperSetter.set(executor, new Handler(), images.get(viewPagerPosition).getLink(), WallpaperSetter.BOTH_SCREENS, this,
+        if (mImages != null && viewPagerPosition >= 0 && viewPagerPosition < mImages.size()) {
+            WallpaperSetter.set(executor, handler, mImages.get(viewPagerPosition).getLink(), WallpaperSetter.BOTH_SCREENS, this,
                     new WallpaperSetter.SetWallpaperListener() {
                         @Override
                         public void success() {
@@ -374,70 +421,14 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
         return binding.viewPagerViewImgurMediaActivity.getCurrentItem();
     }
 
-    @Override
-    public void setCustomFont(Typeface typeface, Typeface titleTypeface, Typeface contentTypeface) {
-        this.typeface = typeface;
-    }
-
-    private class SectionsPagerAdapter extends FragmentStatePagerAdapter {
-
-        SectionsPagerAdapter(@NonNull FragmentManager fm) {
-            super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
-        }
-
-        @NonNull
-        @Override
-        public Fragment getItem(int position) {
-            ImgurMedia imgurMedia = images.get(position);
-            if (imgurMedia.getType() == ImgurMedia.TYPE_VIDEO) {
-                ViewImgurVideoFragment fragment = new ViewImgurVideoFragment();
-                Bundle bundle = new Bundle();
-                bundle.putParcelable(ViewImgurVideoFragment.EXTRA_IMGUR_VIDEO, imgurMedia);
-                bundle.putInt(ViewImgurVideoFragment.EXTRA_INDEX, position);
-                bundle.putInt(ViewImgurVideoFragment.EXTRA_MEDIA_COUNT, images.size());
-                fragment.setArguments(bundle);
-                return fragment;
-            } else {
-                ViewImgurImageFragment fragment = new ViewImgurImageFragment();
-                Bundle bundle = new Bundle();
-                bundle.putParcelable(ViewImgurImageFragment.EXTRA_IMGUR_IMAGES, imgurMedia);
-                bundle.putInt(ViewImgurImageFragment.EXTRA_INDEX, position);
-                bundle.putInt(ViewImgurImageFragment.EXTRA_MEDIA_COUNT, images.size());
-                fragment.setArguments(bundle);
-                return fragment;
-            }
-        }
-
-        @Override
-        public int getCount() {
-            return images.size();
-        }
-    }
-
-    private static class ParseImgurImagesAsyncTask extends AsyncTask<Void, Void, Void> {
-
-        private final String response;
-        private ArrayList<ImgurMedia> images;
-        private boolean parseFailed = false;
-        private final ParseImgurImagesAsyncTaskListener parseImgurImagesAsyncTaskListener;
-
-        interface ParseImgurImagesAsyncTaskListener {
-            void success(ArrayList<ImgurMedia> images);
-
-            void failed();
-        }
-
-        ParseImgurImagesAsyncTask(String response, ParseImgurImagesAsyncTaskListener parseImgurImagesAsyncTaskListener) {
-            this.response = response;
-            this.parseImgurImagesAsyncTaskListener = parseImgurImagesAsyncTaskListener;
-        }
-
-        @Override
-        protected Void doInBackground(Void... voids) {
-            try {
-                JSONArray jsonArray = new JSONObject(response).getJSONObject(JSONUtils.DATA_KEY).getJSONArray(JSONUtils.IMAGES_KEY);
-                images = new ArrayList<>();
-                for (int i = 0; i < jsonArray.length(); i++) {
+    @WorkerThread
+    @Nullable
+    private static ArrayList<ImgurMedia> parseImgurImages(String response) {
+        try {
+            JSONArray jsonArray = new JSONObject(response).getJSONObject(JSONUtils.DATA_KEY).getJSONArray(JSONUtils.IMAGES_KEY);
+            ArrayList<ImgurMedia> images = new ArrayList<>();
+            for (int i = 0; i < jsonArray.length(); i++) {
+                try {
                     JSONObject image = jsonArray.getJSONObject(i);
                     String type = image.getString(JSONUtils.TYPE_KEY);
                     if (type.contains("gif")) {
@@ -449,74 +440,89 @@ public class ViewImgurMediaActivity extends AppCompatActivity implements SetAsWa
                                 image.getString(JSONUtils.TITLE_KEY), image.getString(JSONUtils.DESCRIPTION_KEY),
                                 type, image.getString(JSONUtils.LINK_KEY)));
                     }
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
-            } catch (JSONException e) {
-                e.printStackTrace();
-                parseFailed = true;
             }
 
-            return null;
+            return images;
+        } catch (JSONException e) {
+            e.printStackTrace();
         }
 
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            if (parseFailed) {
-                parseImgurImagesAsyncTaskListener.failed();
+        return null;
+    }
+
+    @WorkerThread
+    @Nullable
+    private static ImgurMedia parseImgurImage(String response) {
+        try {
+            JSONObject image = new JSONObject(response).getJSONObject(JSONUtils.DATA_KEY);
+            String type = image.getString(JSONUtils.TYPE_KEY);
+            if (type.contains("gif")) {
+                return new ImgurMedia(image.getString(JSONUtils.ID_KEY),
+                        image.getString(JSONUtils.TITLE_KEY), image.getString(JSONUtils.DESCRIPTION_KEY),
+                        "video/mp4", image.getString(JSONUtils.MP4_KEY));
             } else {
-                parseImgurImagesAsyncTaskListener.success(images);
+                return new ImgurMedia(image.getString(JSONUtils.ID_KEY),
+                        image.getString(JSONUtils.TITLE_KEY), image.getString(JSONUtils.DESCRIPTION_KEY),
+                        type, image.getString(JSONUtils.LINK_KEY));
             }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    @Override
+    public void setCustomFont(Typeface typeface, Typeface titleTypeface, Typeface contentTypeface) {
+        this.typeface = typeface;
+    }
+
+    public boolean isActionBarHidden() {
+        return isActionBarHidden;
+    }
+
+    public void setActionBarHidden(boolean isActionBarHidden) {
+        this.isActionBarHidden = isActionBarHidden;
+        if (!useBottomAppBar) {
+            binding.toolbarViewImgurMediaActivity.setVisibility(isActionBarHidden ? View.GONE : View.VISIBLE);
         }
     }
 
-    private static class ParseImgurImageAsyncTask extends AsyncTask<Void, Void, Void> {
+    private class SectionsPagerAdapter extends FragmentStatePagerAdapter {
 
-        private final String response;
-        private ImgurMedia image;
-        private boolean parseFailed = false;
-        private final ParseImgurImageAsyncTaskListener parseImgurImageAsyncTaskListener;
-
-        interface ParseImgurImageAsyncTaskListener {
-            void success(ImgurMedia image);
-
-            void failed();
+        SectionsPagerAdapter(@NonNull FragmentManager fm) {
+            super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
         }
 
-        ParseImgurImageAsyncTask(String response, ParseImgurImageAsyncTaskListener parseImgurImageAsyncTaskListener) {
-            this.response = response;
-            this.parseImgurImageAsyncTaskListener = parseImgurImageAsyncTaskListener;
-        }
-
+        @NonNull
         @Override
-        protected Void doInBackground(Void... voids) {
-            try {
-                JSONObject image = new JSONObject(response).getJSONObject(JSONUtils.DATA_KEY);
-                String type = image.getString(JSONUtils.TYPE_KEY);
-                if (type.contains("gif")) {
-                    this.image = new ImgurMedia(image.getString(JSONUtils.ID_KEY),
-                            image.getString(JSONUtils.TITLE_KEY), image.getString(JSONUtils.DESCRIPTION_KEY),
-                            "video/mp4", image.getString(JSONUtils.MP4_KEY));
-                } else {
-                    this.image = new ImgurMedia(image.getString(JSONUtils.ID_KEY),
-                            image.getString(JSONUtils.TITLE_KEY), image.getString(JSONUtils.DESCRIPTION_KEY),
-                            type, image.getString(JSONUtils.LINK_KEY));
-                }
-            } catch (JSONException e) {
-                e.printStackTrace();
-                parseFailed = true;
-            }
-
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            super.onPostExecute(aVoid);
-            if (parseFailed) {
-                parseImgurImageAsyncTaskListener.failed();
+        public Fragment getItem(int position) {
+            ImgurMedia imgurMedia = mImages.get(position);
+            if (imgurMedia.getType() == ImgurMedia.TYPE_VIDEO) {
+                ViewImgurVideoFragment fragment = new ViewImgurVideoFragment();
+                Bundle bundle = new Bundle();
+                bundle.putParcelable(ViewImgurVideoFragment.EXTRA_IMGUR_VIDEO, imgurMedia);
+                bundle.putInt(ViewImgurVideoFragment.EXTRA_INDEX, position);
+                bundle.putInt(ViewImgurVideoFragment.EXTRA_MEDIA_COUNT, mImages.size());
+                fragment.setArguments(bundle);
+                return fragment;
             } else {
-                parseImgurImageAsyncTaskListener.success(image);
+                ViewImgurImageFragment fragment = new ViewImgurImageFragment();
+                Bundle bundle = new Bundle();
+                bundle.putParcelable(ViewImgurImageFragment.EXTRA_IMGUR_IMAGES, imgurMedia);
+                bundle.putInt(ViewImgurImageFragment.EXTRA_INDEX, position);
+                bundle.putInt(ViewImgurImageFragment.EXTRA_MEDIA_COUNT, mImages.size());
+                fragment.setArguments(bundle);
+                return fragment;
             }
+        }
+
+        @Override
+        public int getCount() {
+            return mImages.size();
         }
     }
 }

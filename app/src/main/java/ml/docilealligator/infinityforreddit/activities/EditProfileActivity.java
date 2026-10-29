@@ -1,9 +1,12 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -15,7 +18,10 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.bumptech.glide.Glide;
@@ -32,10 +38,9 @@ import javax.inject.Named;
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import ml.docilealligator.infinityforreddit.Infinity;
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
+import ml.docilealligator.infinityforreddit.database.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
-import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.databinding.ActivityEditProfileBinding;
 import ml.docilealligator.infinityforreddit.events.SubmitChangeAvatarEvent;
 import ml.docilealligator.infinityforreddit.events.SubmitChangeBannerEvent;
@@ -43,7 +48,6 @@ import ml.docilealligator.infinityforreddit.events.SubmitSaveProfileEvent;
 import ml.docilealligator.infinityforreddit.services.EditProfileService;
 import ml.docilealligator.infinityforreddit.user.UserViewModel;
 import ml.docilealligator.infinityforreddit.utils.EditProfileUtils;
-import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
 
@@ -71,7 +75,7 @@ public class EditProfileActivity extends BaseActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         ((Infinity) getApplication()).getAppComponent().inject(this);
 
-        setImmersiveModeNotApplicable();
+        setImmersiveModeNotApplicableBelowAndroid16();
 
         super.onCreate(savedInstanceState);
 
@@ -82,15 +86,36 @@ public class EditProfileActivity extends BaseActivity {
 
         applyCustomTheme();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isChangeStatusBarIconColor()) {
-            addOnOffsetChangedListener(binding.appbarLayoutViewEditProfileActivity);
+        if (isImmersiveInterfaceRespectForcedEdgeToEdge()) {
+            if (isChangeStatusBarIconColor()) {
+                addOnOffsetChangedListener(binding.appbarLayoutViewEditProfileActivity);
+            }
+
+            ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), new OnApplyWindowInsetsListener() {
+                @NonNull
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
+                    Insets allInsets = Utils.getInsets(insets, true, isForcedImmersiveInterface());
+
+                    setMargins(binding.toolbarViewEditProfileActivity,
+                            allInsets.left,
+                            allInsets.top,
+                            allInsets.right,
+                            BaseActivity.IGNORE_MARGIN);
+
+                    binding.nestedScrollViewEditProfileActivity.setPadding(
+                            allInsets.left,
+                            0,
+                            allInsets.right,
+                            allInsets.bottom
+                    );
+
+                    return WindowInsetsCompat.CONSUMED;
+                }
+            });
         }
 
         setSupportActionBar(binding.toolbarViewEditProfileActivity);
-
-        if (mSharedPreferences.getBoolean(SharedPreferencesUtils.SWIPE_RIGHT_TO_GO_BACK, true)) {
-            Slidr.attach(this);
-        }
 
         binding.imageViewChangeBannerEditProfileActivity.setOnClickListener(view -> {
             startPickImage(PICK_IMAGE_BANNER_REQUEST_CODE);
@@ -101,7 +126,7 @@ public class EditProfileActivity extends BaseActivity {
 
         final RequestManager glide = Glide.with(this);
         final UserViewModel.Factory userViewModelFactory =
-                new UserViewModel.Factory(getApplication(), mRedditDataRoomDatabase, accountName);
+                new UserViewModel.Factory(mRedditDataRoomDatabase, accountName);
         final UserViewModel userViewModel =
                 new ViewModelProvider(this, userViewModelFactory).get(UserViewModel.class);
 
@@ -208,7 +233,7 @@ public class EditProfileActivity extends BaseActivity {
         if (resultCode != RESULT_OK || data == null || accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
             return;
         }
-        Intent intent = new Intent(this, EditProfileService.class);
+        /*Intent intent = new Intent(this, EditProfileService.class);
         intent.setData(data.getData());
         intent.putExtra(EditProfileService.EXTRA_ACCOUNT_NAME, accountName);
         intent.putExtra(EditProfileService.EXTRA_ACCESS_TOKEN, accessToken);
@@ -222,6 +247,32 @@ public class EditProfileActivity extends BaseActivity {
                 intent.putExtra(EditProfileService.EXTRA_POST_TYPE, EditProfileService.EXTRA_POST_TYPE_CHANGE_AVATAR);
                 ContextCompat.startForegroundService(this, intent);
                 break;
+            default:
+                break;
+        }*/
+
+        int contentEstimatedBytes = 0;
+        PersistableBundle extras = new PersistableBundle();
+        extras.putString(EditProfileService.EXTRA_MEDIA_URI, data.getData().toString());
+        extras.putString(EditProfileService.EXTRA_ACCOUNT_NAME, accountName);
+        extras.putString(EditProfileService.EXTRA_ACCESS_TOKEN, accessToken);
+        switch (requestCode) {
+            case PICK_IMAGE_BANNER_REQUEST_CODE: {
+                extras.putInt(EditProfileService.EXTRA_POST_TYPE, EditProfileService.EXTRA_POST_TYPE_CHANGE_BANNER);
+
+                //TODO: contentEstimatedBytes
+                JobInfo jobInfo = EditProfileService.constructJobInfo(this, 500000, extras);
+                ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
+                break;
+            }
+            case PICK_IMAGE_AVATAR_REQUEST_CODE: {
+                extras.putInt(EditProfileService.EXTRA_POST_TYPE, EditProfileService.EXTRA_POST_TYPE_CHANGE_AVATAR);
+
+                //TODO: contentEstimatedBytes
+                JobInfo jobInfo = EditProfileService.constructJobInfo(this, 500000, extras);
+                ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
+                break;
+            }
             default:
                 break;
         }
@@ -251,14 +302,24 @@ public class EditProfileActivity extends BaseActivity {
             }
             if (aboutYou == null || displayName == null) return false; //
 
-            Intent intent = new Intent(this, EditProfileService.class);
+            /*Intent intent = new Intent(this, EditProfileService.class);
             intent.putExtra(EditProfileService.EXTRA_ACCOUNT_NAME, accountName);
             intent.putExtra(EditProfileService.EXTRA_ACCESS_TOKEN, accessToken);
             intent.putExtra(EditProfileService.EXTRA_DISPLAY_NAME, displayName); //
             intent.putExtra(EditProfileService.EXTRA_ABOUT_YOU, aboutYou); //
             intent.putExtra(EditProfileService.EXTRA_POST_TYPE, EditProfileService.EXTRA_POST_TYPE_SAVE_EDIT_PROFILE);
 
-            ContextCompat.startForegroundService(this, intent);
+            ContextCompat.startForegroundService(this, intent);*/
+
+            PersistableBundle extras = new PersistableBundle();
+            extras.putString(EditProfileService.EXTRA_ACCOUNT_NAME, accountName);
+            extras.putString(EditProfileService.EXTRA_ACCESS_TOKEN, accessToken);
+            extras.putString(EditProfileService.EXTRA_DISPLAY_NAME, displayName);
+            extras.putString(EditProfileService.EXTRA_ABOUT_YOU, aboutYou);
+            extras.putInt(EditProfileService.EXTRA_POST_TYPE, EditProfileService.EXTRA_POST_TYPE_SAVE_EDIT_PROFILE);
+
+            JobInfo jobInfo = EditProfileService.constructJobInfo(this, 1000, extras);
+            ((JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE)).schedule(jobInfo);
             return true;
         }
         return false;
@@ -312,7 +373,9 @@ public class EditProfileActivity extends BaseActivity {
 
     @Override
     protected void applyCustomTheme() {
-        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutViewEditProfileActivity, binding.collapsingToolbarLayoutEditProfileActivity, binding.toolbarViewEditProfileActivity);
+        applyAppBarLayoutAndCollapsingToolbarLayoutAndToolbarTheme(binding.appbarLayoutViewEditProfileActivity,
+                binding.collapsingToolbarLayoutEditProfileActivity, binding.toolbarViewEditProfileActivity);
+        applyAppBarScrollFlagsIfApplicable(binding.collapsingToolbarLayoutEditProfileActivity);
         binding.rootLayoutViewEditProfileActivity.setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
         changeColorTextView(binding.contentViewEditProfileActivity, mCustomThemeWrapper.getPrimaryTextColor());
         if (typeface != null) {

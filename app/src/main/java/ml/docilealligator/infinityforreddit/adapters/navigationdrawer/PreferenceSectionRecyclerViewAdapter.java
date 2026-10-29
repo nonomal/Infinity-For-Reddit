@@ -11,7 +11,6 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import ml.docilealligator.infinityforreddit.R;
-import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.databinding.ItemNavDrawerMenuGroupTitleBinding;
@@ -20,21 +19,19 @@ import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 
 public class PreferenceSectionRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private static final int VIEW_TYPE_MENU_GROUP_TITLE = 1;
-    private static final int VIEW_TYPE_MENU_ITEM = 2;
-    private static final int PREFERENCES_SECTION_ITEMS = 3;
+    private final int VIEW_TYPE_MENU_GROUP_TITLE = 1;
+    private final int VIEW_TYPE_MENU_ITEM = 2;
+    private final int PREFERENCES_SECTION_ITEMS = 2;
 
     private final BaseActivity baseActivity;
     private final Resources resources;
     private final int primaryTextColor;
     private final int secondaryTextColor;
     private final int primaryIconColor;
-    private boolean isNSFWEnabled;
     private boolean collapsePreferencesSection;
     private final NavigationDrawerRecyclerViewMergedAdapter.ItemClickListener itemClickListener;
 
     public PreferenceSectionRecyclerViewAdapter(BaseActivity baseActivity, CustomThemeWrapper customThemeWrapper,
-                                                @NonNull String accountName, SharedPreferences nsfwAndSpoilerSharedPreferences,
                                                 SharedPreferences navigationDrawerSharedPreferences,
                                                 NavigationDrawerRecyclerViewMergedAdapter.ItemClickListener itemClickListener) {
         this.baseActivity = baseActivity;
@@ -42,7 +39,6 @@ public class PreferenceSectionRecyclerViewAdapter extends RecyclerView.Adapter<R
         primaryTextColor = customThemeWrapper.getPrimaryTextColor();
         secondaryTextColor = customThemeWrapper.getSecondaryTextColor();
         primaryIconColor = customThemeWrapper.getPrimaryIconColor();
-        isNSFWEnabled = nsfwAndSpoilerSharedPreferences.getBoolean((accountName.equals(Account.ANONYMOUS_ACCOUNT) ? "" : accountName) + SharedPreferencesUtils.NSFW_BASE, false);
         collapsePreferencesSection = navigationDrawerSharedPreferences.getBoolean(SharedPreferencesUtils.COLLAPSE_PREFERENCES_SECTION, false);
         this.itemClickListener = itemClickListener;
     }
@@ -87,7 +83,6 @@ public class PreferenceSectionRecyclerViewAdapter extends RecyclerView.Adapter<R
         } else if (holder instanceof MenuItemViewHolder) {
             int stringId = 0;
             int drawableId = 0;
-            boolean setOnClickListener = true;
 
             switch (position) {
                 case 1:
@@ -100,41 +95,15 @@ public class PreferenceSectionRecyclerViewAdapter extends RecyclerView.Adapter<R
                     }
                     break;
                 case 2:
-                    setOnClickListener = false;
-                    if (isNSFWEnabled) {
-                        stringId = R.string.disable_nsfw;
-                        drawableId = R.drawable.ic_nsfw_off_24dp;
-                    } else {
-                        stringId = R.string.enable_nsfw;
-                        drawableId = R.drawable.ic_nsfw_on_24dp;
-                    }
-
-                    holder.itemView.setOnClickListener(view -> {
-                        if (isNSFWEnabled) {
-                            isNSFWEnabled = false;
-                            ((MenuItemViewHolder) holder).binding.textViewItemNavDrawerMenuItem.setText(R.string.enable_nsfw);
-                            ((MenuItemViewHolder) holder).binding.imageViewItemNavDrawerMenuItem.setImageDrawable(ContextCompat.getDrawable(baseActivity, R.drawable.ic_nsfw_on_24dp));
-                            itemClickListener.onMenuClick(R.string.disable_nsfw);
-                        } else {
-                            isNSFWEnabled = true;
-                            ((MenuItemViewHolder) holder).binding.textViewItemNavDrawerMenuItem.setText(R.string.disable_nsfw);
-                            ((MenuItemViewHolder) holder).binding.imageViewItemNavDrawerMenuItem.setImageDrawable(ContextCompat.getDrawable(baseActivity, R.drawable.ic_nsfw_off_24dp));
-                            itemClickListener.onMenuClick(R.string.enable_nsfw);
-                        }
-                    });
-                    break;
-                case 3:
                     stringId = R.string.settings;
-                    drawableId = R.drawable.ic_settings_24dp;
+                    drawableId = R.drawable.ic_settings_day_night_24dp;
             }
 
             if (stringId != 0) {
                 ((MenuItemViewHolder) holder).binding.textViewItemNavDrawerMenuItem.setText(stringId);
                 ((MenuItemViewHolder) holder).binding.imageViewItemNavDrawerMenuItem.setImageDrawable(ContextCompat.getDrawable(baseActivity, drawableId));
-                if (setOnClickListener) {
-                    int finalStringId = stringId;
-                    holder.itemView.setOnClickListener(view -> itemClickListener.onMenuClick(finalStringId));
-                }
+                int finalStringId = stringId;
+                holder.itemView.setOnClickListener(view -> itemClickListener.onMenuClick(finalStringId));
             }
         }
     }
@@ -142,11 +111,6 @@ public class PreferenceSectionRecyclerViewAdapter extends RecyclerView.Adapter<R
     @Override
     public int getItemCount() {
         return collapsePreferencesSection ? 1 : PREFERENCES_SECTION_ITEMS + 1;
-    }
-
-    public void setNSFWEnabled(boolean isNSFWEnabled) {
-        this.isNSFWEnabled = isNSFWEnabled;
-        notifyItemChanged(3);
     }
 
     class MenuGroupTitleViewHolder extends RecyclerView.ViewHolder {
